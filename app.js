@@ -165,10 +165,10 @@ const DataParser = {
         if (compraMatch) {
             return {
                 date,
-                team: compraMatch[1].trim(),
+                team: this.normalizeTeamName(compraMatch[1].trim()),
                 type: 'compra',
                 player: compraMatch[2].trim(),
-                fromTo: compraMatch[3].trim(),
+                fromTo: this.normalizeTeamName(compraMatch[3].trim()),
                 amount: this.parseAmount(compraMatch[4])
             };
         }
@@ -178,10 +178,10 @@ const DataParser = {
         if (ventaMatch) {
             return {
                 date,
-                team: ventaMatch[1].trim(),
+                team: this.normalizeTeamName(ventaMatch[1].trim()),
                 type: 'venta',
                 player: ventaMatch[2].trim(),
-                fromTo: ventaMatch[3].trim(),
+                fromTo: this.normalizeTeamName(ventaMatch[3].trim()),
                 amount: this.parseAmount(ventaMatch[4])
             };
         }
@@ -191,7 +191,7 @@ const DataParser = {
         if (blindajeMatch) {
             return {
                 date,
-                team: blindajeMatch[1].trim(),
+                team: this.normalizeTeamName(blindajeMatch[1].trim()),
                 type: 'blindaje',
                 player: blindajeMatch[2].trim(),
                 fromTo: '-',
@@ -204,7 +204,7 @@ const DataParser = {
         if (jornadaMatch) {
             return {
                 date,
-                team: jornadaMatch[2].trim(),
+                team: this.normalizeTeamName(jornadaMatch[2].trim()),
                 type: 'jornada',
                 player: `Jornada ${jornadaMatch[1]}`,
                 fromTo: 'Premio',
@@ -217,7 +217,7 @@ const DataParser = {
         if (onceMatch) {
             return {
                 date,
-                team: onceMatch[1].trim(),
+                team: this.normalizeTeamName(onceMatch[1].trim()),
                 type: 'once_ideal',
                 player: `11 Ideal J${onceMatch[3]}`,
                 fromTo: 'Premio',
@@ -230,6 +230,20 @@ const DataParser = {
 
     parseAmount(amountStr) {
         return parseInt(amountStr.replace(/\./g, ''), 10) || 0;
+    },
+
+    // Normalize team names to match CONFIG (handles extra spaces)
+    normalizeTeamName(name) {
+        // Remove extra spaces and normalize
+        const normalized = name.replace(/\s+/g, ' ').trim();
+        // Find matching team in CONFIG
+        const teams = Object.keys(CONFIG.TEAMS);
+        const match = teams.find(t =>
+            t.toLowerCase() === normalized.toLowerCase() ||
+            normalized.toLowerCase().includes(t.toLowerCase()) ||
+            t.toLowerCase().includes(normalized.toLowerCase())
+        );
+        return match || normalized;
     },
 
     generateHash(movement) {
