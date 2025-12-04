@@ -137,7 +137,7 @@ const DataParser = {
 
     parseLine(line) {
         // Format: "DD/MM/YYYY | Team ha comprado/vendido/blindado..."
-        // Or: "| Team ha comprado..." (no date)
+        // Or: "| Team ha comprado..." (no date - assign today's date)
 
         let date = '';
         let content = line;
@@ -150,6 +150,12 @@ const DataParser = {
             date = dateMatch[1];
             content = dateMatch[2];
         } else if (noDateMatch) {
+            // Assign today's date for movements without dates
+            const today = new Date();
+            const day = String(today.getDate()).padStart(2, '0');
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const year = today.getFullYear();
+            date = `${day}/${month}/${year}`;
             content = noDateMatch[1];
         } else {
             return null;
@@ -674,7 +680,12 @@ const UI = {
         const filterType = document.getElementById('filterType').value;
         const filterPlayer = document.getElementById('filterPlayer').value.toLowerCase();
 
-        let movements = [...State.movements].reverse();
+        // Sort movements by date (newest first)
+        let movements = [...State.movements].sort((a, b) => {
+            const dateA = State.parseDate(a.date);
+            const dateB = State.parseDate(b.date);
+            return dateB - dateA; // Descending order (newest first)
+        });
 
         if (filterTeam) movements = movements.filter(m => m.team === filterTeam);
         if (filterType) movements = movements.filter(m => m.type === filterType);
