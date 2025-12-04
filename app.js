@@ -242,14 +242,22 @@ const DataParser = {
     normalizeTeamName(name) {
         // Remove extra spaces and normalize
         const normalized = name.replace(/\s+/g, ' ').trim();
-        // Find matching team in CONFIG
+        // Find matching team in CONFIG - use exact match only
         const teams = Object.keys(CONFIG.TEAMS);
-        const match = teams.find(t =>
-            t.toLowerCase() === normalized.toLowerCase() ||
-            normalized.toLowerCase().includes(t.toLowerCase()) ||
-            t.toLowerCase().includes(normalized.toLowerCase())
+
+        // First try exact match (case insensitive)
+        const exactMatch = teams.find(t => t.toLowerCase() === normalized.toLowerCase());
+        if (exactMatch) return exactMatch;
+
+        // Then try if input starts with team name (for cases like "Alcatamy eSports By  ")
+        const startsWithMatch = teams.find(t =>
+            normalized.toLowerCase().startsWith(t.toLowerCase()) ||
+            t.toLowerCase().startsWith(normalized.toLowerCase())
         );
-        return match || normalized;
+        if (startsWithMatch) return startsWithMatch;
+
+        // Return original if no match (like "LALIGA")
+        return normalized;
     },
 
     generateHash(movement) {
