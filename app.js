@@ -8,12 +8,12 @@
 // ============================
 const CONFIG = {
     TEAMS: {
-        'GOLENCIERRO FC': { initialBudget: 103000000 },
-        'Vigar24': { initialBudget: 103000000 },
-        'Visite La Manga FC': { initialBudget: 103000000 },
-        'Pablinistan FC': { initialBudget: 103000000 },
-        'Alcatamy eSports By': { initialBudget: 100000000 },
-        'Morenazos FC': { initialBudget: 103000000 }
+        'GOLENCIERRO FC': { initialBudget: 103000000, clausulas: 180500000 },
+        'Vigar24': { initialBudget: 103000000, clausulas: 107000000 },
+        'Visite La Manga FC': { initialBudget: 103000000, clausulas: 54000000 },
+        'Pablinistan FC': { initialBudget: 103000000, clausulas: 152200000 },
+        'Alcatamy eSports By': { initialBudget: 100000000, clausulas: 168850000 },
+        'Morenazos FC': { initialBudget: 103000000, clausulas: 36000000 }
     },
     MAX_DEBT_PERCENT: 0.20,
     STORAGE_KEYS: {
@@ -333,15 +333,17 @@ const Calculator = {
             sales += m.amount;
         });
 
-        const currentBudget = team.initialBudget + sales - purchases + jornadaEarnings + onceIdealEarnings;
+        const clausulas = team.clausulas || 0;
+        const currentBudget = team.initialBudget + sales - purchases - clausulas + jornadaEarnings + onceIdealEarnings;
         const teamValue = State.teamValues[teamName] || 0;
         const maxBid = currentBudget + (teamValue * CONFIG.MAX_DEBT_PERCENT);
-        const balance = sales - purchases;
+        const balance = sales - purchases - clausulas;
         const roi = purchases > 0 ? ((sales / purchases) - 1) * 100 : 0;
 
         return {
             name: teamName,
             initialBudget: team.initialBudget,
+            clausulas,
             currentBudget,
             teamValue,
             maxBid,
@@ -640,6 +642,10 @@ const UI = {
                     <div class="team-stat">
                         <span class="team-stat-label">🏆 Jornadas</span>
                         <span class="team-stat-value positive">${this.formatMoney(team.jornadaEarnings + team.onceIdealEarnings)}</span>
+                    </div>
+                    <div class="team-stat">
+                        <span class="team-stat-label">📋 Cláusulas</span>
+                        <span class="team-stat-value negative">${this.formatMoney(team.clausulas)}</span>
                     </div>
                     <div class="team-stat">
                         <span class="team-stat-label">🛡️ Blindajes</span>
