@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,10 +8,12 @@
     <meta name="description" content="Monitorea el dinero de tu liga Fantasy con análisis avanzado">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <!-- Header -->
     <header class="header">
@@ -141,27 +144,69 @@
         <!-- Analytics Tab -->
         <section class="tab-content" id="analytics">
             <h2 class="section-title">📊 Analytics Avanzado</h2>
-            
+
             <div class="analytics-grid">
                 <!-- Top Signings -->
                 <div class="analytics-card">
                     <h3>🔥 Top 10 Fichajes Más Caros</h3>
                     <div class="analytics-list" id="topSignings"></div>
                 </div>
-                
-                <!-- Best Sales -->
+
+                <!-- Best Sales (Plusvalias) -->
                 <div class="analytics-card">
-                    <h3>💎 Top 10 Mejores Ventas (Plusvalía)</h3>
+                    <h3>💎 Top 10 Mejores Plusvalías</h3>
                     <div class="analytics-list" id="topSales"></div>
                 </div>
-                
+
+                <!-- Worst Sales (Minusvalias) -->
+                <div class="analytics-card">
+                    <h3>📉 Top 10 Peores Ventas (Minusvalías)</h3>
+                    <div class="analytics-list" id="worstSales"></div>
+                </div>
+
                 <!-- Most Traded -->
                 <div class="analytics-card">
                     <h3>🔄 Jugadores Más Traspasados</h3>
                     <div class="analytics-list" id="mostTraded"></div>
                 </div>
-                
-                <!-- Team Stats -->
+
+                <!-- Team Rankings - Most Spending -->
+                <div class="analytics-card">
+                    <h3>💸 Equipos Más Gastadores</h3>
+                    <div class="analytics-list" id="teamSpending"></div>
+                </div>
+
+                <!-- Team Rankings - Best Sellers -->
+                <div class="analytics-card">
+                    <h3>💰 Equipos Más Vendedores</h3>
+                    <div class="analytics-list" id="teamSelling"></div>
+                </div>
+
+                <!-- Best ROI Teams -->
+                <div class="analytics-card">
+                    <h3>📈 Mejor ROI por Equipo</h3>
+                    <div class="analytics-list" id="teamROI"></div>
+                </div>
+
+                <!-- Jornada Earnings -->
+                <div class="analytics-card">
+                    <h3>🏆 Ranking Ganancias Jornadas</h3>
+                    <div class="analytics-list" id="jornadaRanking"></div>
+                </div>
+
+                <!-- Shields Leaders -->
+                <div class="analytics-card">
+                    <h3>🛡️ Más Blindajes</h3>
+                    <div class="analytics-list" id="shieldsRanking"></div>
+                </div>
+
+                <!-- Average Prices -->
+                <div class="analytics-card">
+                    <h3>📊 Precio Medio Fichajes</h3>
+                    <div class="analytics-list" id="avgPrices"></div>
+                </div>
+
+                <!-- Team Stats Radar -->
                 <div class="analytics-card full-width">
                     <h3>📈 Comparativa de Equipos</h3>
                     <canvas id="radarChart"></canvas>
@@ -186,7 +231,7 @@
                     <span id="linesDetected">0 líneas detectadas</span>
                 </div>
                 <button class="btn btn-primary" id="btnPreviewMovements">👁️ Vista Previa</button>
-                
+
                 <div class="preview-section" id="previewSection" style="display: none;">
                     <h3>Vista Previa</h3>
                     <div class="preview-summary">
@@ -262,4 +307,5 @@
 
     <script src="app.js"></script>
 </body>
+
 </html>

@@ -396,7 +396,7 @@ const Calculator = {
             .sort((a, b) => b.amount - a.amount)
             .slice(0, 10);
 
-        // Calculate plusvalias
+        // Calculate plusvalias and minusvalias
         const playerPurchases = {};
         const playerSales = {};
 
@@ -413,25 +413,63 @@ const Calculator = {
         const plusvalias = [];
         Object.keys(playerSales).forEach(player => {
             const sales = playerSales[player] || [];
-            const purchases = playerPurchases[player] || [];
+            const purchasesForPlayer = playerPurchases[player] || [];
 
             sales.forEach((sale, i) => {
-                const purchase = purchases[i];
+                const purchase = purchasesForPlayer[i];
                 if (purchase) {
                     plusvalias.push({
                         player,
                         purchasePrice: purchase.amount,
                         salePrice: sale.amount,
                         profit: sale.amount - purchase.amount,
+                        profitPercent: purchase.amount > 0 ? ((sale.amount - purchase.amount) / purchase.amount * 100) : 0,
                         team: sale.team
                     });
                 }
             });
         });
 
+        // Top plusvalías (benefits)
         const topPlusvalias = plusvalias
+            .filter(p => p.profit > 0)
             .sort((a, b) => b.profit - a.profit)
             .slice(0, 10);
+
+        // Top minusvalías (losses)
+        const worstPlusvalias = plusvalias
+            .filter(p => p.profit < 0)
+            .sort((a, b) => a.profit - b.profit)
+            .slice(0, 10);
+
+        // Team rankings - by spending
+        const teamSpending = [...teamStats]
+            .sort((a, b) => b.purchases - a.purchases);
+
+        // Team rankings - by selling
+        const teamSelling = [...teamStats]
+            .sort((a, b) => b.sales - a.sales);
+
+        // Team rankings - by ROI
+        const teamROI = [...teamStats]
+            .sort((a, b) => b.roi - a.roi);
+
+        // Team rankings - by jornada earnings
+        const jornadaRanking = [...teamStats]
+            .sort((a, b) => (b.jornadaEarnings + b.onceIdealEarnings) - (a.jornadaEarnings + a.onceIdealEarnings));
+
+        // Team rankings - by shields
+        const shieldsRanking = [...teamStats]
+            .sort((a, b) => b.shields - a.shields);
+
+        // Average purchase price per team
+        const avgPrices = teamStats.map(team => {
+            const teamPurchases = purchases.filter(p => p.team === team.name);
+            const avg = teamPurchases.length > 0
+                ? teamPurchases.reduce((s, p) => s + p.amount, 0) / teamPurchases.length
+                : 0;
+            return { ...team, avgPurchase: avg, purchaseCount: teamPurchases.length };
+        }).sort((a, b) => b.avgPurchase - a.avgPurchase);
 
         return {
             totalVolume,
@@ -441,6 +479,13 @@ const Calculator = {
             mostTraded,
             topSignings,
             topPlusvalias,
+            worstPlusvalias,
+            teamSpending,
+            teamSelling,
+            teamROI,
+            jornadaRanking,
+            shieldsRanking,
+            avgPrices,
             teamStats
         };
     }
@@ -695,13 +740,24 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Top plusvalias
+        // Top plusvalias (beneficios)
         document.getElementById('topSales').innerHTML = stats.topPlusvalias.map((s, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
-                <span class="analytics-name">${s.player}</span>
-                <span class="analytics-value" style="color: ${s.profit >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'}">
-                    ${s.profit >= 0 ? '+' : ''}${this.formatMoney(s.profit)}
+                <span class="analytics-name">${s.player} (${s.team})</span>
+                <span class="analytics-value" style="color: var(--accent-emerald)">
+                    +${this.formatMoney(s.profit)} (+${s.profitPercent?.toFixed(0) || 0}%)
+                </span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Worst plusvalias (minusvalias / pérdidas)
+        document.getElementById('worstSales').innerHTML = stats.worstPlusvalias.map((s, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${s.player} (${s.team})</span>
+                <span class="analytics-value" style="color: var(--accent-rose)">
+                    ${this.formatMoney(s.profit)} (${s.profitPercent?.toFixed(0) || 0}%)
                 </span>
             </div>
         `).join('') || '<p>Sin datos</p>';
@@ -712,6 +768,64 @@ const UI = {
                 <span class="analytics-rank">${i + 1}</span>
                 <span class="analytics-name">${player}</span>
                 <span class="analytics-value">${count} traspasos</span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Team spending
+        document.getElementById('teamSpending').innerHTML = stats.teamSpending.map((t, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${t.name}</span>
+                <span class="analytics-value">${this.formatMoney(t.purchases)}</span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Team selling
+        document.getElementById('teamSelling').innerHTML = stats.teamSelling.map((t, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${t.name}</span>
+                <span class="analytics-value">${this.formatMoney(t.sales)}</span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Team ROI
+        document.getElementById('teamROI').innerHTML = stats.teamROI.map((t, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${t.name}</span>
+                <span class="analytics-value" style="color: ${t.roi >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)'}">
+                    ${t.roi >= 0 ? '+' : ''}${t.roi.toFixed(1)}%
+                </span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Jornada earnings ranking
+        document.getElementById('jornadaRanking').innerHTML = stats.jornadaRanking.map((t, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${t.name}</span>
+                <span class="analytics-value" style="color: var(--accent-emerald)">
+                    ${this.formatMoney(t.jornadaEarnings + t.onceIdealEarnings)}
+                </span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Shields ranking
+        document.getElementById('shieldsRanking').innerHTML = stats.shieldsRanking.map((t, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${t.name}</span>
+                <span class="analytics-value">${t.shields} blindajes</span>
+            </div>
+        `).join('') || '<p>Sin datos</p>';
+
+        // Average purchase prices
+        document.getElementById('avgPrices').innerHTML = stats.avgPrices.map((t, i) => `
+            <div class="analytics-item">
+                <span class="analytics-rank">${i + 1}</span>
+                <span class="analytics-name">${t.name} (${t.purchaseCount})</span>
+                <span class="analytics-value">${this.formatMoney(t.avgPurchase)}</span>
             </div>
         `).join('') || '<p>Sin datos</p>';
 
