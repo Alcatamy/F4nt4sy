@@ -287,7 +287,16 @@ const Calculator = {
         const team = CONFIG.TEAMS[teamName];
         if (!team) return null;
 
+        // Get movements where this team is the primary actor
         const movements = State.movements.filter(m => m.team === teamName);
+
+        // Get movements where OTHER teams bought FROM this team (inter-team sales)
+        // These are recorded as "Team X ha comprado al jugador Y de [thisTeam] por Z€"
+        const interTeamSalesToMe = State.movements.filter(m =>
+            m.type === 'compra' &&
+            m.fromTo === teamName &&
+            m.team !== teamName
+        );
 
         let purchases = 0;
         let sales = 0;
@@ -303,6 +312,11 @@ const Calculator = {
                 case 'once_ideal': onceIdealEarnings += m.amount; break;
                 case 'blindaje': shields++; break;
             }
+        });
+
+        // Add money received from inter-team sales (when others bought FROM this team)
+        interTeamSalesToMe.forEach(m => {
+            sales += m.amount;
         });
 
         const currentBudget = team.initialBudget + sales - purchases + jornadaEarnings + onceIdealEarnings;
