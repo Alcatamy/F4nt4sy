@@ -16,6 +16,10 @@ const CONFIG = {
         'Morenazos FC': { initialBudget: 103000000, clausulas: 36000000 }
     },
     MAX_DEBT_PERCENT: 0.20,
+    AUTH: {
+        PASSWORD: 'qqqq',
+        SESSION_KEY: 'fantasy_auth_session'
+    },
     STORAGE_KEYS: {
         MOVEMENTS: 'fantasy_movements',
         TEAM_VALUES: 'fantasy_team_values',
@@ -27,7 +31,10 @@ const CONFIG = {
 // STATE MANAGEMENT
 // ============================
 const State = {
+    // ... existing properties
     movements: [],
+    // ...
+
     teamValues: {},
     playerValues: {},
     squads: {},
@@ -1243,6 +1250,43 @@ const UI = {
             once_ideal: '11 Ideal'
         };
         return labels[type] || type;
+    },
+
+    initAuth() {
+        const overlay = document.getElementById('loginOverlay');
+        const input = document.getElementById('loginPassword');
+        const btn = document.getElementById('btnLogin');
+        const error = document.getElementById('loginError');
+
+        // Check valid session
+        if (sessionStorage.getItem(CONFIG.AUTH.SESSION_KEY) === 'true') {
+            overlay.style.display = 'none';
+            document.body.querySelectorAll('body > *:not(#loginOverlay)').forEach(el => el.style.filter = 'none');
+            return;
+        }
+
+        const checkLogin = () => {
+            if (input.value === CONFIG.AUTH.PASSWORD) {
+                // Success
+                sessionStorage.setItem(CONFIG.AUTH.SESSION_KEY, 'true');
+                overlay.style.opacity = '0';
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    document.body.querySelectorAll('body > *:not(#loginOverlay)').forEach(el => el.style.filter = 'none');
+                }, 300);
+            } else {
+                // Error
+                error.style.display = 'block';
+                input.style.borderColor = '#f43f5e';
+                input.value = '';
+                input.focus();
+            }
+        };
+
+        btn.addEventListener('click', checkLogin);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') checkLogin();
+        });
     }
 };
 
@@ -1250,6 +1294,7 @@ const UI = {
 // INITIALIZATION
 // ============================
 document.addEventListener('DOMContentLoaded', () => {
+    UI.initAuth(); // Auth first
     State.init();
     UI.init();
 });
