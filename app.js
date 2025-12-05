@@ -311,6 +311,8 @@ const Calculator = {
         if (!team) return null;
 
         const movements = State.movements.filter(m => m.team === teamName);
+
+        // Find purchases FROM me by others (Potential income)
         const interTeamSalesToMe = State.movements.filter(m =>
             m.type === 'compra' &&
             m.fromTo === teamName &&
@@ -333,8 +335,23 @@ const Calculator = {
             }
         });
 
-        interTeamSalesToMe.forEach(m => {
-            sales += m.amount;
+        // Smart Logic: Only add inferred income if there isn't an explicit 'venta' movement
+        // matching this transaction. This handles both Single-Entry (TXT) and Double-Entry (CSV) data.
+        interTeamSalesToMe.forEach(buyMov => {
+            // Check if I (teamName) have an explicit 'venta' of this player to the buyer
+            const hasExplicitSale = movements.some(m =>
+                m.type === 'venta' &&
+                m.player === buyMov.player &&
+                m.amount === buyMov.amount &&
+                // Fuzzy date check (within 1 day) or ignore date? 
+                // Given the CSV has identical dates, strict date or exact match is fine.
+                // Let's rely on Price + Player + Buyer(fromTo/team)
+                m.fromTo === buyMov.team
+            );
+
+            if (!hasExplicitSale) {
+                sales += buyMov.amount;
+            }
         });
 
         // Clausulas from history
