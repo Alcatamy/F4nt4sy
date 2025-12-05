@@ -1,0 +1,11 @@
+# Development tools
+*.py
+*.txt
+*.csv
+*.xlsx
+*.json
+
+# Logs and system files
+*.log
+.DS_Store
+Thumbs.db
