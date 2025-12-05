@@ -1034,11 +1034,20 @@ const UI = {
         document.getElementById('previewSection').style.display = 'block';
         document.getElementById('previewStats').innerHTML = `
             <p><strong>${movements.length}</strong> movimientos detectados</p>
-            <p><strong>${newMovements.length}</strong> nuevos | <strong>${duplicates}</strong> duplicados</p>
+            <p class="${newMovements.length > 0 ? 'positive-text' : 'warning-text'}">
+                <strong>${newMovements.length}</strong> nuevos | <strong>${duplicates}</strong> duplicados
+            </p>
         `;
 
         this.pendingMovements = newMovements;
-        document.getElementById('confirmAddMovements').disabled = newMovements.length === 0;
+        // Don't strongly disable, just let them click and get a toast if 0
+        const btn = document.getElementById('confirmAddMovements');
+        btn.disabled = movements.length === 0;
+        if (movements.length > 0 && newMovements.length === 0) {
+            btn.textContent = "⚠️ Todos son duplicados";
+        } else {
+            btn.textContent = "Confirmar Importación";
+        }
     },
 
     confirmMovements() {
@@ -1050,6 +1059,8 @@ const UI = {
             this.closeModal('modalAddMovements');
             this.showToast(`✅ ${this.pendingMovements.length} movimientos añadidos`, 'success');
             this.pendingMovements = null;
+        } else {
+            this.showToast('⚠️ No hay movimientos nuevos para añadir', 'warning');
         }
     },
 
