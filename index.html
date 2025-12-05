@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Money Monitor | Liga Profesional</title>
+    <meta name="description" content="Monitorea el dinero de tu liga Fantasy con análisis avanzado">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <span class="logo-icon">⚽</span>
+                <h1>Fantasy Monitor</h1>
+            </div>
+            <nav class="nav-tabs">
+                <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
+                <button class="nav-tab" data-tab="movements">Movimientos</button>
+                <button class="nav-tab" data-tab="squads">Plantillas</button>
+                <button class="nav-tab" data-tab="analytics">Analytics</button>
+            </nav>
+            <div class="header-actions">
+                <button class="btn btn-primary" id="btnAddMovements">
+                    <span>➕</span> Añadir Movimientos
+                </button>
+                <button class="btn btn-secondary" id="btnUpdateValues">
+                    <span>📊</span> Actualizar Valores
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Dashboard Tab -->
+        <section class="tab-content active" id="dashboard">
+            <!-- Global Stats -->
+            <div class="global-stats">
+                <div class="stat-card">
+                    <span class="stat-icon">💰</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="totalMarketVolume">0€</span>
+                        <span class="stat-label">Volumen Total Mercado</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">📊</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="totalMovements">0</span>
+                        <span class="stat-label">Total Movimientos</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">🔥</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="mostExpensivePlayer">-</span>
+                        <span class="stat-label">Fichaje Más Caro</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-icon">⚡</span>
+                    <div class="stat-info">
+                        <span class="stat-value" id="mostActiveTeam">-</span>
+                        <span class="stat-label">Equipo Más Activo</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team Cards Grid -->
+            <h2 class="section-title">📋 Estado de Equipos</h2>
+            <div class="teams-grid" id="teamsGrid">
+                <!-- Team cards will be rendered here -->
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-section">
+                <div class="chart-container">
+                    <h3>💰 Comparativa de Presupuestos</h3>
+                    <canvas id="budgetChart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <h3>📈 Balance (Ganancias vs Pérdidas)</h3>
+                    <canvas id="balanceChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Movements Tab -->
+        <section class="tab-content" id="movements">
+            <div class="movements-header">
+                <h2 class="section-title">📜 Historial de Movimientos</h2>
+                <div class="filters">
+                    <select id="filterTeam" class="filter-select">
+                        <option value="">Todos los equipos</option>
+                    </select>
+                    <select id="filterType" class="filter-select">
+                        <option value="">Todos los tipos</option>
+                        <option value="compra">Compras</option>
+                        <option value="venta">Ventas</option>
+                        <option value="blindaje">Blindajes</option>
+                        <option value="jornada">Premios Jornada</option>
+                        <option value="once_ideal">Once Ideal</option>
+                    </select>
+                    <input type="text" id="filterPlayer" class="filter-input" placeholder="Buscar jugador...">
+                    <button class="btn btn-secondary" id="btnExportCSV">📤 Exportar CSV</button>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="movements-table" id="movementsTable">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Equipo</th>
+                            <th>Tipo</th>
+                            <th>Jugador</th>
+                            <th>De/A</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="movementsBody">
+                        <!-- Movements will be rendered here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Squads Tab -->
+        <section class="tab-content" id="squads">
+            <h2 class="section-title">👥 Plantillas Actuales</h2>
+            <div class="squads-grid" id="squadsGrid">
+                <!-- Squad cards will be rendered here -->
+            </div>
+        </section>
+
+        <!-- Analytics Tab -->
+        <section class="tab-content" id="analytics">
+            <h2 class="section-title">📊 Analytics Avanzado</h2>
+
+            <div class="analytics-grid">
+                <!-- Top Signings -->
+                <div class="analytics-card">
+                    <h3>🔥 Top 10 Fichajes Más Caros</h3>
+                    <div class="analytics-list" id="topSignings"></div>
+                </div>
+
+                <!-- Best Sales (Plusvalias) -->
+                <div class="analytics-card">
+                    <h3>💎 Top 10 Mejores Plusvalías</h3>
+                    <div class="analytics-list" id="topSales"></div>
+                </div>
+
+                <!-- Worst Sales (Minusvalias) -->
+                <div class="analytics-card">
+                    <h3>📉 Top 10 Peores Ventas (Minusvalías)</h3>
+                    <div class="analytics-list" id="worstSales"></div>
+                </div>
+
+                <!-- Most Traded -->
+                <div class="analytics-card">
+                    <h3>🔄 Jugadores Más Traspasados</h3>
+                    <div class="analytics-list" id="mostTraded"></div>
+                </div>
+
+                <!-- Team Rankings - Most Spending -->
+                <div class="analytics-card">
+                    <h3>💸 Equipos Más Gastadores</h3>
+                    <div class="analytics-list" id="teamSpending"></div>
+                </div>
+
+                <!-- Team Rankings - Best Sellers -->
+                <div class="analytics-card">
+                    <h3>💰 Equipos Más Vendedores</h3>
+                    <div class="analytics-list" id="teamSelling"></div>
+                </div>
+
+                <!-- Best ROI Teams -->
+                <div class="analytics-card">
+                    <h3>📈 Mejor ROI por Equipo</h3>
+                    <div class="analytics-list" id="teamROI"></div>
+                </div>
+
+                <!-- Jornada Earnings -->
+                <div class="analytics-card">
+                    <h3>🏆 Ranking Ganancias Jornadas</h3>
+                    <div class="analytics-list" id="jornadaRanking"></div>
+                </div>
+
+                <!-- Shields Leaders -->
+                <div class="analytics-card">
+                    <h3>🛡️ Más Blindajes</h3>
+                    <div class="analytics-list" id="shieldsRanking"></div>
+                </div>
+
+                <!-- Average Prices -->
+                <div class="analytics-card">
+                    <h3>📊 Precio Medio Fichajes</h3>
+                    <div class="analytics-list" id="avgPrices"></div>
+                </div>
+
+                <!-- Team Stats Radar -->
+                <div class="analytics-card full-width">
+                    <h3>📈 Comparativa de Equipos</h3>
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal: Add Movements -->
+    <div class="modal" id="modalAddMovements">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>➕ Añadir Movimientos</h2>
+                <button class="modal-close" id="closeAddMovements">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-instruction">Pega aquí los movimientos copiados directamente de la app Fantasy:</p>
+                <textarea id="movementsInput" class="modal-textarea" placeholder="01/09/2025 | Vigar24 ha comprado al jugador Bellingham de LALIGA por 80.000.001€
+01/09/2025 | En la jornada 3, Visite La Manga FC ha ganado 6.500.000€
+..."></textarea>
+                <div class="import-stats">
+                    <span id="linesDetected">0 líneas detectadas</span>
+                </div>
+                <button class="btn btn-primary" id="btnPreviewMovements">👁️ Vista Previa</button>
+
+                <div class="preview-section" id="previewSection" style="display: none;">
+                    <h3>Vista Previa</h3>
+                    <div class="preview-summary">
+                        <span class="preview-new">✅ <span id="newCount">0</span> nuevos</span>
+                        <span class="preview-duplicate">⚠️ <span id="duplicateCount">0</span> duplicados</span>
+                    </div>
+                    <div class="preview-table-container">
+                        <table class="preview-table">
+                            <thead>
+                                <tr>
+                                    <th>Estado</th>
+                                    <th>Fecha</th>
+                                    <th>Equipo</th>
+                                    <th>Tipo</th>
+                                    <th>Jugador</th>
+                                    <th>Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelAddMovements">Cancelar</button>
+                <button class="btn btn-success" id="confirmAddMovements" disabled>✅ Confirmar Importación</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Update Team Values -->
+    <div class="modal" id="modalUpdateValues">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 Actualizar Valores de Equipos</h2>
+                <button class="modal-close" id="closeUpdateValues">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="input-group" style="margin-bottom: 1rem;">
+                    <label style="margin-right: 1rem;"><input type="radio" name="updateType" value="team_value" checked>
+                        Valor de Equipo</label>
+                    <label><input type="radio" name="updateType" value="clausulas"> Cláusulas</label>
+                </div>
+                <p class="modal-instruction" id="updateInstruction">Pega aquí los valores de equipos copiados de la app
+                    Fantasy:</p>
+                <textarea id="valuesInput" class="modal-textarea" placeholder="Alcatamy eSports By
+
+702.151.510
+
+..."></textarea>
+                <div class="preview-section" id="valuesPreview" style="display: none;">
+                    <h3>Vista Previa de Valores</h3>
+                    <div class="values-preview-list" id="valuesPreviewList"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelUpdateValues">Cancelar</button>
+                <button class="btn btn-primary" id="previewValues">👁️ Vista Previa</button>
+                <button class="btn btn-success" id="confirmUpdateValues" disabled>✅ Actualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Team Detail -->
+    <div class="modal" id="modalTeamDetail">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="teamDetailTitle">Detalle del Equipo</h2>
+                <button class="modal-close" id="closeTeamDetail">&times;</button>
+            </div>
+            <div class="modal-body" id="teamDetailBody">
+                <!-- Team detail content -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Data Auto-Load -->
+    <script src="movements_data.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
