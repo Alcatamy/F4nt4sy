@@ -8,12 +8,12 @@
 // ============================
 const CONFIG = {
     TEAMS: {
-        'GOLENCIERRO FC': { initialBudget: 103000000, clausulas: 180500000 },
-        'Vigar24': { initialBudget: 103000000, clausulas: 107000000 },
-        'Visite La Manga FC': { initialBudget: 103000000, clausulas: 54000000 },
-        'Pablinistan FC': { initialBudget: 103000000, clausulas: 152200000 },
-        'Alcatamy eSports By': { initialBudget: 100000000, clausulas: 168850000 },
-        'Morenazos FC': { initialBudget: 103000000, clausulas: 36000000 }
+        'GOLENCIERRO FC': { initialBudget: 103000000 },
+        'Vigar24': { initialBudget: 103000000 },
+        'Visite La Manga FC': { initialBudget: 103000000 },
+        'Pablinistan FC': { initialBudget: 103000000 },
+        'Alcatamy eSports By': { initialBudget: 100000000 },
+        'Morenazos FC': { initialBudget: 103000000 }
     },
     MAX_DEBT_PERCENT: 0.20,
     AUTH: {
@@ -27,58 +27,102 @@ const CONFIG = {
     }
 };
 
-calculateSquads() {
-    this.squads = {};
-    Object.keys(CONFIG.TEAMS).forEach(team => {
-        this.squads[team] = [];
-    });
+// ============================
+// STATE MANAGEMENT
+// ============================
+const State = {
+    movements: [],
+    clausulasHistory: [],
+    teamValues: {},
+    playerValues: {},
+    squads: {},
 
-    // Sort movements by date
-    const sortedMovements = [...this.movements].sort((a, b) => {
-        const dateA = this.parseDate(a.date);
-        const dateB = this.parseDate(b.date);
-        return dateA - dateB;
-    });
+    init() {
+        this.loadFromStorage();
+        this.calculateSquads();
+    },
 
-    sortedMovements.forEach(mov => {
-        if (mov.type === 'compra') {
-            // Remove player from previous team if exists
-            Object.keys(this.squads).forEach(team => {
-                this.squads[team] = this.squads[team].filter(p => p.player !== mov.player);
-            });
-            // Add to new team (only if team exists in our config)
-            if (this.squads[mov.team]) {
-                this.squads[mov.team].push({
-                    player: mov.player,
-                    purchasePrice: mov.amount,
-                    purchaseDate: mov.date,
-                    shielded: false
-                });
+    loadFromStorage() {
+        try {
+            if (typeof CORRECTED_MOVEMENTS !== 'undefined' && Array.isArray(CORRECTED_MOVEMENTS)) {
+                console.log('Loading corrected movements from file...');
+                this.movements = CORRECTED_MOVEMENTS;
+                this.saveToStorage();
+            } else {
+                const movements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
+                this.movements = movements ? JSON.parse(movements) : [];
             }
-        } else if (mov.type === 'venta') {
-            // Remove from team
-            if (this.squads[mov.team]) {
-                this.squads[mov.team] = this.squads[mov.team].filter(p => p.player !== mov.player);
-            }
-        } else if (mov.type === 'blindaje') {
-            // Mark as shielded
-            const player = this.squads[mov.team]?.find(p => p.player === mov.player);
-            if (player) {
-                player.shielded = true;
-                player.shieldDate = mov.date;
-            }
+
+            const teamValues = localStorage.getItem(CONFIG.STORAGE_KEYS.TEAM_VALUES);
+            const playerValues = localStorage.getItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES);
+            const clausulasHistory = localStorage.getItem('fantasy_clausulas_history');
+
+            this.teamValues = teamValues ? JSON.parse(teamValues) : {};
+            this.playerValues = playerValues ? JSON.parse(playerValues) : {};
+            this.clausulasHistory = clausulasHistory ? JSON.parse(clausulasHistory) : [];
+        } catch (e) {
+            console.error('Error loading from storage:', e);
         }
-    });
-},
+    },
 
-parseDate(dateStr) {
-    if (!dateStr) return new Date(0);
-    const parts = dateStr.split('/');
-    if (parts.length === 3) {
-        return new Date(parts[2], parts[1] - 1, parts[0]);
+    saveToStorage() {
+        try {
+            localStorage.setItem(CONFIG.STORAGE_KEYS.MOVEMENTS, JSON.stringify(this.movements));
+            localStorage.setItem(CONFIG.STORAGE_KEYS.TEAM_VALUES, JSON.stringify(this.teamValues));
+            localStorage.setItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES, JSON.stringify(this.playerValues));
+            localStorage.setItem('fantasy_clausulas_history', JSON.stringify(this.clausulasHistory));
+        } catch (e) {
+            console.error('Error saving to storage:', e);
+        }
+    },
+
+    calculateSquads() {
+        this.squads = {};
+        Object.keys(CONFIG.TEAMS).forEach(team => {
+            this.squads[team] = [];
+        });
+
+        const sortedMovements = [...this.movements].sort((a, b) => {
+            const dateA = this.parseDate(a.date);
+            const dateB = this.parseDate(b.date);
+            return dateA - dateB;
+        });
+
+        sortedMovements.forEach(mov => {
+            if (mov.type === 'compra') {
+                Object.keys(this.squads).forEach(team => {
+                    this.squads[team] = this.squads[team].filter(p => p.player !== mov.player);
+                });
+                if (this.squads[mov.team]) {
+                    this.squads[mov.team].push({
+                        player: mov.player,
+                        purchasePrice: mov.amount,
+                        purchaseDate: mov.date,
+                        shielded: false
+                    });
+                }
+            } else if (mov.type === 'venta') {
+                if (this.squads[mov.team]) {
+                    this.squads[mov.team] = this.squads[mov.team].filter(p => p.player !== mov.player);
+                }
+            } else if (mov.type === 'blindaje') {
+                const player = this.squads[mov.team]?.find(p => p.player === mov.player);
+                if (player) {
+                    player.shielded = true;
+                    player.shieldDate = mov.date;
+                }
+            }
+        });
+    },
+
+    parseDate(dateStr) {
+        if (!dateStr) return new Date(0);
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+            return new Date(parts[2], parts[1] - 1, parts[0]);
+        }
+        return new Date(0);
     }
-    return new Date(0);
-}
 };
 
 // ============================
@@ -102,13 +146,9 @@ const DataParser = {
     },
 
     parseLine(line) {
-        // Format: "DD/MM/YYYY | Team ha comprado/vendido/blindado..."
-        // Or: "| Team ha comprado..." (no date - assign today's date)
-
         let date = '';
         let content = line;
 
-        // Check if line has date
         const dateMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})\s*\|\s*(.+)$/);
         const noDateMatch = line.match(/^\s*\|\s*(.+)$/);
 
@@ -116,40 +156,18 @@ const DataParser = {
             date = dateMatch[1];
             content = dateMatch[2];
         } else if (noDateMatch) {
-            // Assign today's date for movements without dates
             const today = new Date();
-            const day = String(today.getDate()).padStart(2, '0');
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const year = today.getFullYear();
-            date = `${day}/${month}/${year}`;
+            date = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
             content = noDateMatch[1];
         } else {
             return null;
         }
 
-        // Parse content
         return this.parseContent(content, date);
     },
 
     parseContent(content, date) {
-        // Compra: "Team ha comprado al jugador Player de FromTeam por Amount€"
-        // Improved Regex:
-        // 1. Handles extra spaces between words.
-        // 2. Handles diverse currency symbols (Euro sign can be encoded differently or missing).
-        // 3. Normalized "de" and "por".
-
-        // Regex explanation:
-        // ^(.+?)                  -> Group 1: Buyer Team (lazy)
-        // \s+ha comprado al jugador\s+ -> Fixed phrase with spaces
-        // (.+?)                   -> Group 2: Player Name (lazy)
-        // \s+de\s+                -> " de "
-        // (.+?)                   -> Group 3: Seller Team (lazy)
-        // \s+por\s+               -> " por "
-        // ([\d.]+)                -> Group 4: Amount (digits and dots)
-        // [€Ôé¼]?                 -> Optional currency symbol (Euro or corrupted UTF-8)
-
-        const compraMatch = content.match(/^(.+?)\s+ha comprado al jugador\s+(.+?)\s+de\s+(.+?)\s+por\s+([\d.]+)[€Ôé¼]?.*$/i);
-
+        const compraMatch = content.match(/^(.+?)\s+ha comprado al jugador\s+(.+?)\s+de\s+(.+?)\s+por\s+([\d.]+)[€]?.*$/i);
         if (compraMatch) {
             return {
                 date,
@@ -161,7 +179,6 @@ const DataParser = {
             };
         }
 
-        // Venta: "Team ha vendido al jugador Player a ToTeam por Amount€"
         const ventaMatch = content.match(/^(.+?)\s+ha vendido al jugador\s+(.+?)\s+a\s+(.+?)\s+por\s+([\d.]+)€?$/i);
         if (ventaMatch) {
             return {
@@ -174,7 +191,6 @@ const DataParser = {
             };
         }
 
-        // Blindaje: "Team ha blindado a Player"
         const blindajeMatch = content.match(/^(.+?)\s+ha blindado a\s+(.+)$/i);
         if (blindajeMatch) {
             return {
@@ -187,7 +203,6 @@ const DataParser = {
             };
         }
 
-        // Jornada: "En la jornada X, Team ha ganado Amount€"
         const jornadaMatch = content.match(/^En la jornada\s+(\d+),\s+(.+?)\s+ha ganado\s+([\d.]+)€?$/i);
         if (jornadaMatch) {
             return {
@@ -200,7 +215,6 @@ const DataParser = {
             };
         }
 
-        // Once ideal: "Team ha ganado X€ por tener jugadores en el 11 ideal"
         const onceMatch = content.match(/^(.+?)\s+ha ganado\s+([\d.]+)€?\s+por tener jugadores en el 11 ideal de la jornada\s+(\d+)/i);
         if (onceMatch) {
             return {
@@ -220,32 +234,23 @@ const DataParser = {
         return parseInt(amountStr.replace(/\./g, ''), 10) || 0;
     },
 
-    // Normalize team names to match CONFIG (handles extra spaces)
     normalizeTeamName(name) {
-        // Remove extra spaces and normalize
         const normalized = name.replace(/\s+/g, ' ').trim();
-        // Find matching team in CONFIG - use exact match only
         const teams = Object.keys(CONFIG.TEAMS);
 
-        // First try exact match (case insensitive)
         const exactMatch = teams.find(t => t.toLowerCase() === normalized.toLowerCase());
         if (exactMatch) return exactMatch;
 
-        // Then try if input starts with team name (for cases like "Alcatamy eSports By  ")
         const startsWithMatch = teams.find(t =>
             normalized.toLowerCase().startsWith(t.toLowerCase()) ||
             t.toLowerCase().startsWith(normalized.toLowerCase())
         );
         if (startsWithMatch) return startsWithMatch;
 
-        // Return original if no match (like "LALIGA")
         return normalized;
     },
 
     generateHash(movement) {
-        // Unique key: Type | Team | Player | Amount
-        // Date is EXCLUDED to catch duplicates where one has a date and the other doesn't
-        // or if they have slightly different dates but represent the same transaction.
         const str = `${movement.type}|${movement.team}|${movement.player}|${movement.amount}`;
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
@@ -260,13 +265,10 @@ const DataParser = {
         const lines = text.trim().split('\n').filter(line => line.trim());
         const values = {};
         let currentTeam = null;
-
         const teamNames = Object.keys(CONFIG.TEAMS);
 
         lines.forEach(line => {
             const trimmed = line.trim();
-
-            // Check if this is a team name
             const matchedTeam = teamNames.find(t =>
                 trimmed.toLowerCase().includes(t.toLowerCase()) ||
                 t.toLowerCase().includes(trimmed.toLowerCase())
@@ -275,7 +277,6 @@ const DataParser = {
             if (matchedTeam) {
                 currentTeam = matchedTeam;
             } else if (currentTeam) {
-                // Try to parse as value
                 const valueMatch = trimmed.match(/^([\d.]+)$/);
                 if (valueMatch) {
                     values[currentTeam] = this.parseAmount(valueMatch[1]);
@@ -287,55 +288,6 @@ const DataParser = {
         return values;
     },
 
-    parseClausulas(text) {
-        const lines = text.trim().split('\n').filter(line => line.trim());
-        const values = {};
-
-        // Try to handle "Team [tab/space] Amount" or just "Amount" if team context is known (complex, stick to simple)
-        // Expected format: "TeamName\tAmount" or "TeamName Amount"
-
-        const teamNames = Object.keys(CONFIG.TEAMS);
-
-        // Strategy: Look for team name and a number in the same line or subsequent lines
-        let currentTeam = null;
-
-        lines.forEach(line => {
-            const trimmed = line.trim();
-
-            // 1. Check for "TeamName Amount" or "TeamName ... Amount"
-            // Sort teams by length desc to match longest name first
-            const sortedTeams = [...teamNames].sort((a, b) => b.length - a.length);
-
-            let foundTeamInLine = null;
-            for (const t of sortedTeams) {
-                if (trimmed.toLowerCase().includes(t.toLowerCase())) {
-                    foundTeamInLine = t;
-                    break;
-                }
-            }
-
-            if (foundTeamInLine) {
-                currentTeam = foundTeamInLine;
-                // Check if the amount is also in this line
-                // Remove the team name and look for the rest
-                const rest = trimmed.replace(new RegExp(foundTeamInLine, 'i'), '').trim();
-                const amountMatch = rest.match(/([\d.]+)/);
-                if (amountMatch) {
-                    values[currentTeam] = this.parseAmount(amountMatch[1]);
-                    currentTeam = null; // Reset
-                }
-            } else if (currentTeam) {
-                // If we have a pending team, look for a number alone
-                const amountMatch = trimmed.match(/^([\d.]+)$/);
-                if (amountMatch) {
-                    values[currentTeam] = this.parseAmount(amountMatch[1]);
-                    currentTeam = null;
-                }
-            }
-        });
-
-        return values;
-    },
     isDuplicate(movement) {
         return State.movements.some(m => m.id === movement.id);
     }
@@ -349,11 +301,7 @@ const Calculator = {
         const team = CONFIG.TEAMS[teamName];
         if (!team) return null;
 
-        // Get movements where this team is the primary actor
         const movements = State.movements.filter(m => m.team === teamName);
-
-        // Get movements where OTHER teams bought FROM this team (inter-team sales)
-        // These are recorded as "Team X ha comprado al jugador Y de [thisTeam] por Z€"
         const interTeamSalesToMe = State.movements.filter(m =>
             m.type === 'compra' &&
             m.fromTo === teamName &&
@@ -376,148 +324,140 @@ const Calculator = {
             }
         });
 
-        sales,
+        interTeamSalesToMe.forEach(m => {
+            sales += m.amount;
+        });
+
+        // Clausulas from history
+        const teamClausulas = State.clausulasHistory.filter(c => c.team === teamName);
+        const clausulasTotal = teamClausulas.reduce((sum, c) => sum + c.amount, 0);
+
+        const currentBudget = team.initialBudget + sales - purchases - clausulasTotal + jornadaEarnings + onceIdealEarnings;
+        const teamValue = State.teamValues[teamName] || 0;
+        const maxBid = currentBudget + (teamValue * CONFIG.MAX_DEBT_PERCENT);
+        const balance = sales - purchases - clausulasTotal;
+        const roi = purchases > 0 ? ((sales / purchases) - 1) * 100 : 0;
+
+        return {
+            name: teamName,
+            initialBudget: team.initialBudget,
+            clausulas: clausulasTotal,
+            currentBudget,
+            teamValue,
+            maxBid,
+            balance,
+            purchases,
+            sales,
             jornadaEarnings,
             onceIdealEarnings,
             shields,
             roi,
             totalMovements: movements.length,
-                squad: State.squads[teamName] || []
-    };
-},
+            squad: State.squads[teamName] || []
+        };
+    },
 
     getAllTeamStats() {
         return Object.keys(CONFIG.TEAMS).map(team => this.getTeamStats(team));
     },
 
-        getGlobalStats() {
-    const allMovements = State.movements;
-    const teamStats = this.getAllTeamStats();
+    getGlobalStats() {
+        const allMovements = State.movements;
+        const teamStats = this.getAllTeamStats();
 
-    // Total market volume
-    const totalVolume = allMovements
-        .filter(m => m.type === 'compra' || m.type === 'venta')
-        .reduce((sum, m) => sum + m.amount, 0);
+        const totalVolume = allMovements
+            .filter(m => m.type === 'compra' || m.type === 'venta')
+            .reduce((sum, m) => sum + m.amount, 0);
 
-    // Most expensive signing
-    const purchases = allMovements.filter(m => m.type === 'compra');
-    const mostExpensive = purchases.reduce((max, m) => m.amount > (max?.amount || 0) ? m : max, null);
+        const purchases = allMovements.filter(m => m.type === 'compra');
+        const mostExpensive = purchases.reduce((max, m) => m.amount > (max?.amount || 0) ? m : max, null);
 
-    // Most active team
-    const teamCounts = {};
-    allMovements.forEach(m => {
-        teamCounts[m.team] = (teamCounts[m.team] || 0) + 1;
-    });
-    const mostActive = Object.entries(teamCounts).reduce((max, [team, count]) =>
-        count > (max?.count || 0) ? { team, count } : max, null);
+        const teamCounts = {};
+        allMovements.forEach(m => {
+            teamCounts[m.team] = (teamCounts[m.team] || 0) + 1;
+        });
+        const mostActive = Object.entries(teamCounts).reduce((max, [team, count]) =>
+            count > (max?.count || 0) ? { team, count } : max, null);
 
-    // Most traded player
-    const playerTrades = {};
-    allMovements.filter(m => m.type === 'compra' || m.type === 'venta').forEach(m => {
-        playerTrades[m.player] = (playerTrades[m.player] || 0) + 1;
-    });
-    const mostTraded = Object.entries(playerTrades)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10);
+        const playerTrades = {};
+        allMovements.filter(m => m.type === 'compra' || m.type === 'venta').forEach(m => {
+            playerTrades[m.player] = (playerTrades[m.player] || 0) + 1;
+        });
+        const mostTraded = Object.entries(playerTrades)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
 
-    // Top signings
-    const topSignings = [...purchases]
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 10);
+        const topSignings = [...purchases]
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 10);
 
-    // Calculate plusvalias and minusvalias
-    const playerPurchases = {};
-    const playerSales = {};
+        const playerPurchases = {};
+        const playerSales = {};
 
-    allMovements.forEach(m => {
-        if (m.type === 'compra') {
-            if (!playerPurchases[m.player]) playerPurchases[m.player] = [];
-            playerPurchases[m.player].push(m);
-        } else if (m.type === 'venta') {
-            if (!playerSales[m.player]) playerSales[m.player] = [];
-            playerSales[m.player].push(m);
-        }
-    });
-
-    const plusvalias = [];
-    Object.keys(playerSales).forEach(player => {
-        const sales = playerSales[player] || [];
-        const purchasesForPlayer = playerPurchases[player] || [];
-
-        sales.forEach((sale, i) => {
-            const purchase = purchasesForPlayer[i];
-            if (purchase) {
-                plusvalias.push({
-                    player,
-                    purchasePrice: purchase.amount,
-                    salePrice: sale.amount,
-                    profit: sale.amount - purchase.amount,
-                    profitPercent: purchase.amount > 0 ? ((sale.amount - purchase.amount) / purchase.amount * 100) : 0,
-                    team: sale.team
-                });
+        allMovements.forEach(m => {
+            if (m.type === 'compra') {
+                if (!playerPurchases[m.player]) playerPurchases[m.player] = [];
+                playerPurchases[m.player].push(m);
+            } else if (m.type === 'venta') {
+                if (!playerSales[m.player]) playerSales[m.player] = [];
+                playerSales[m.player].push(m);
             }
         });
-    });
 
-    // Top plusvalías (benefits)
-    const topPlusvalias = plusvalias
-        .filter(p => p.profit > 0)
-        .sort((a, b) => b.profit - a.profit)
-        .slice(0, 10);
+        const plusvalias = [];
+        Object.keys(playerSales).forEach(player => {
+            const sales = playerSales[player] || [];
+            const purchasesForPlayer = playerPurchases[player] || [];
 
-    // Top minusvalías (losses)
-    const worstPlusvalias = plusvalias
-        .filter(p => p.profit < 0)
-        .sort((a, b) => a.profit - b.profit)
-        .slice(0, 10);
+            sales.forEach((sale, i) => {
+                const purchase = purchasesForPlayer[i];
+                if (purchase) {
+                    plusvalias.push({
+                        player,
+                        purchasePrice: purchase.amount,
+                        salePrice: sale.amount,
+                        profit: sale.amount - purchase.amount,
+                        profitPercent: purchase.amount > 0 ? ((sale.amount - purchase.amount) / purchase.amount * 100) : 0,
+                        team: sale.team
+                    });
+                }
+            });
+        });
 
-    // Team rankings - by spending
-    const teamSpending = [...teamStats]
-        .sort((a, b) => b.purchases - a.purchases);
+        const topPlusvalias = plusvalias.filter(p => p.profit > 0).sort((a, b) => b.profit - a.profit).slice(0, 10);
+        const worstPlusvalias = plusvalias.filter(p => p.profit < 0).sort((a, b) => a.profit - b.profit).slice(0, 10);
+        const teamSpending = [...teamStats].sort((a, b) => b.purchases - a.purchases);
+        const teamSelling = [...teamStats].sort((a, b) => b.sales - a.sales);
+        const teamROI = [...teamStats].sort((a, b) => b.roi - a.roi);
+        const jornadaRanking = [...teamStats].sort((a, b) => (b.jornadaEarnings + b.onceIdealEarnings) - (a.jornadaEarnings + a.onceIdealEarnings));
+        const shieldsRanking = [...teamStats].sort((a, b) => b.shields - a.shields);
 
-    // Team rankings - by selling
-    const teamSelling = [...teamStats]
-        .sort((a, b) => b.sales - a.sales);
+        const avgPrices = teamStats.map(team => {
+            const teamPurchases = purchases.filter(p => p.team === team.name);
+            const avg = teamPurchases.length > 0
+                ? teamPurchases.reduce((s, p) => s + p.amount, 0) / teamPurchases.length
+                : 0;
+            return { ...team, avgPurchase: avg, purchaseCount: teamPurchases.length };
+        }).sort((a, b) => b.avgPurchase - a.avgPurchase);
 
-    // Team rankings - by ROI
-    const teamROI = [...teamStats]
-        .sort((a, b) => b.roi - a.roi);
-
-    // Team rankings - by jornada earnings
-    const jornadaRanking = [...teamStats]
-        .sort((a, b) => (b.jornadaEarnings + b.onceIdealEarnings) - (a.jornadaEarnings + a.onceIdealEarnings));
-
-    // Team rankings - by shields
-    const shieldsRanking = [...teamStats]
-        .sort((a, b) => b.shields - a.shields);
-
-    // Average purchase price per team
-    const avgPrices = teamStats.map(team => {
-        const teamPurchases = purchases.filter(p => p.team === team.name);
-        const avg = teamPurchases.length > 0
-            ? teamPurchases.reduce((s, p) => s + p.amount, 0) / teamPurchases.length
-            : 0;
-        return { ...team, avgPurchase: avg, purchaseCount: teamPurchases.length };
-    }).sort((a, b) => b.avgPurchase - a.avgPurchase);
-
-    return {
-        totalVolume,
-        totalMovements: allMovements.length,
-        mostExpensive,
-        mostActive,
-        mostTraded,
-        topSignings,
-        topPlusvalias,
-        worstPlusvalias,
-        teamSpending,
-        teamSelling,
-        teamROI,
-        jornadaRanking,
-        shieldsRanking,
-        avgPrices,
-        teamStats
-    };
-}
+        return {
+            totalVolume,
+            totalMovements: allMovements.length,
+            mostExpensive,
+            mostActive,
+            mostTraded,
+            topSignings,
+            topPlusvalias,
+            worstPlusvalias,
+            teamSpending,
+            teamSelling,
+            teamROI,
+            jornadaRanking,
+            shieldsRanking,
+            avgPrices,
+            teamStats
+        };
+    }
 };
 
 // ============================
@@ -530,12 +470,10 @@ const UI = {
     },
 
     bindEvents() {
-        // Tab navigation
         document.querySelectorAll('.nav-tab').forEach(tab => {
             tab.addEventListener('click', () => this.switchTab(tab.dataset.tab));
         });
 
-        // Modals
         document.getElementById('btnAddMovements').addEventListener('click', () => this.openModal('modalAddMovements'));
         document.getElementById('btnUpdateValues').addEventListener('click', () => this.openModal('modalUpdateValues'));
 
@@ -546,52 +484,39 @@ const UI = {
         document.getElementById('cancelAddMovements').addEventListener('click', () => this.closeModal('modalAddMovements'));
         document.getElementById('cancelUpdateValues').addEventListener('click', () => this.closeModal('modalUpdateValues'));
 
-        // Movement import
         document.getElementById('movementsInput').addEventListener('input', (e) => {
             const lines = e.target.value.trim().split('\n').filter(l => l.trim()).length;
             document.getElementById('linesDetected').textContent = `${lines} líneas detectadas`;
         });
 
         document.getElementById('btnPreviewMovements').addEventListener('click', () => this.previewMovements());
-        // Clausulas UI
-        document.getElementById('btnAddClausula').addEventListener('click', () => this.addClausula());
+        document.getElementById('confirmAddMovements').addEventListener('click', () => this.confirmMovements());
 
-        // Populate Team Select
-        const teamSelect = document.getElementById('clausulaTeam');
-        Object.keys(CONFIG.TEAMS).forEach(team => {
-            const option = document.createElement('option');
-            option.value = team;
-            option.textContent = team;
-            teamSelect.appendChild(option);
-        });
-
-        // Values update (Modified to remove clausulas toggle logic as it is now separate)
         document.getElementById('previewValues').addEventListener('click', () => this.previewValues());
         document.getElementById('confirmUpdateValues').addEventListener('click', () => this.confirmValues());
 
-        // Filters
         document.getElementById('filterTeam').addEventListener('change', () => this.renderMovementsTable());
         document.getElementById('filterType').addEventListener('change', () => this.renderMovementsTable());
         document.getElementById('filterPlayer').addEventListener('input', () => this.renderMovementsTable());
 
-        // Export
         document.getElementById('btnExportCSV').addEventListener('click', () => this.exportCSV());
 
-        // Update Values Toggle
-        document.querySelectorAll('input[name="updateType"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                const instruction = document.getElementById('updateInstruction');
-                const textarea = document.getElementById('valuesInput');
-                if (e.target.value === 'clausulas') {
-                    instruction.textContent = 'Pega aquí las CLÁUSULAS copiadas (Formato: Equipo [tab] Valor):';
-                    textarea.placeholder = 'Alcatamy eSports By 150.000.000\n...';
-                } else {
-                    instruction.textContent = 'Pega aquí los VALORES DE EQUIPO copiados:';
-                    textarea.placeholder = 'Alcatamy eSports By\n\n702.151.510\n...';
-                }
+        // Clausulas UI
+        const btnAddClausula = document.getElementById('btnAddClausula');
+        if (btnAddClausula) {
+            btnAddClausula.addEventListener('click', () => this.addClausula());
+        }
+
+        const teamSelect = document.getElementById('clausulaTeam');
+        if (teamSelect) {
+            Object.keys(CONFIG.TEAMS).forEach(team => {
+                const option = document.createElement('option');
+                option.value = team;
+                option.textContent = team;
+                teamSelect.appendChild(option);
             });
-        });
-        // Close modals on outside click
+        }
+
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) this.closeModal(modal.id);
@@ -606,10 +531,10 @@ const UI = {
         document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
         document.getElementById(tabId).classList.add('active');
 
-        // Refresh content
         if (tabId === 'movements') this.renderMovementsTable();
         if (tabId === 'squads') this.renderSquads();
         if (tabId === 'analytics') this.renderAnalytics();
+        if (tabId === 'clausulas') this.renderClausulas();
     },
 
     openModal(modalId) {
@@ -618,7 +543,6 @@ const UI = {
 
     closeModal(modalId) {
         document.getElementById(modalId).classList.remove('active');
-        // Reset form state
         if (modalId === 'modalAddMovements') {
             document.getElementById('movementsInput').value = '';
             document.getElementById('previewSection').style.display = 'none';
@@ -643,7 +567,6 @@ const UI = {
     renderDashboard() {
         const stats = Calculator.getGlobalStats();
 
-        // Global stats
         document.getElementById('totalMarketVolume').textContent = this.formatMoney(stats.totalVolume);
         document.getElementById('totalMovements').textContent = stats.totalMovements;
         document.getElementById('mostExpensivePlayer').textContent = stats.mostExpensive
@@ -653,11 +576,9 @@ const UI = {
             ? `${stats.mostActive.team} (${stats.mostActive.count})`
             : '-';
 
-        // Team cards
         const grid = document.getElementById('teamsGrid');
         grid.innerHTML = stats.teamStats.map(team => this.renderTeamCard(team)).join('');
 
-        // Bind click events on cards
         grid.querySelectorAll('.team-card').forEach(card => {
             card.addEventListener('click', () => this.showTeamDetail(card.dataset.team));
         });
@@ -723,6 +644,104 @@ const UI = {
 
     renderMovementsTable() {
         const filterTeam = document.getElementById('filterTeam').value;
+        const filterType = document.getElementById('filterType').value;
+        const filterPlayer = document.getElementById('filterPlayer').value.toLowerCase();
+
+        let movements = [...State.movements].sort((a, b) => {
+            const dateA = State.parseDate(a.date);
+            const dateB = State.parseDate(b.date);
+            return dateB - dateA;
+        });
+
+        if (filterTeam) movements = movements.filter(m => m.team === filterTeam);
+        if (filterType) movements = movements.filter(m => m.type === filterType);
+        if (filterPlayer) movements = movements.filter(m => m.player.toLowerCase().includes(filterPlayer));
+
+        const tbody = document.getElementById('movementsBody');
+        tbody.innerHTML = movements.slice(0, 200).map(m => `
+            <tr>
+                <td>${m.date || '-'}</td>
+                <td>${m.team}</td>
+                <td><span class="type-badge type-${m.type}">${this.getTypeLabel(m.type)}</span></td>
+                <td>${m.player}</td>
+                <td>${m.fromTo}</td>
+                <td>${m.amount > 0 ? this.formatMoney(m.amount) : '-'}</td>
+            </tr>
+        `).join('');
+    },
+
+    renderClausulas() {
+        const list = State.clausulasHistory || [];
+        const total = list.reduce((sum, item) => sum + item.amount, 0);
+
+        const totalEl = document.getElementById('totalClausulasAmount');
+        if (totalEl) totalEl.textContent = this.formatMoney(total);
+
+        const tbody = document.getElementById('clausulasBody');
+        if (tbody) {
+            tbody.innerHTML = list
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map(item => `
+                <tr>
+                    <td>${item.date || '-'}</td>
+                    <td>${item.team}</td>
+                    <td>${item.player}</td>
+                    <td class="negative">${this.formatMoney(item.amount)}</td>
+                    <td><button class="btn-xs btn-danger" onclick="UI.deleteClausula('${item.id}')">Eliminar</button></td>
+                </tr>
+            `).join('');
+        }
+
+        window.UI = this;
+    },
+
+    addClausula() {
+        const team = document.getElementById('clausulaTeam').value;
+        const player = document.getElementById('clausulaPlayer').value;
+        const amountStr = document.getElementById('clausulaAmount').value;
+        const date = document.getElementById('clausulaDate').value;
+
+        if (!team || !player || !amountStr) {
+            this.showToast('⚠️ Rellena todos los campos', 'error');
+            return;
+        }
+
+        const amount = DataParser.parseAmount(amountStr);
+        let formattedDate = new Date().toLocaleDateString();
+        if (date) {
+            const parts = date.split('-');
+            formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+
+        const newClausula = {
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
+            date: formattedDate,
+            team,
+            player,
+            amount
+        };
+
+        State.clausulasHistory.push(newClausula);
+        State.saveToStorage();
+        this.render();
+        this.showToast('✅ Cláusula añadida', 'success');
+
+        document.getElementById('clausulaPlayer').value = '';
+        document.getElementById('clausulaAmount').value = '';
+    },
+
+    deleteClausula(id) {
+        if (confirm('¿Seguro que quieres borrar este registro?')) {
+            State.clausulasHistory = State.clausulasHistory.filter(c => String(c.id) !== String(id));
+            State.saveToStorage();
+            this.render();
+            this.showToast('🗑️ Registro borrado', 'info');
+        }
+    },
+
+    renderSquads() {
+        const stats = Calculator.getAllTeamStats();
+        const grid = document.getElementById('squadsGrid');
 
         grid.innerHTML = stats.map(team => {
             const players = team.squad.map(p => {
@@ -764,7 +783,6 @@ const UI = {
     renderAnalytics() {
         const stats = Calculator.getGlobalStats();
 
-        // Top signings
         document.getElementById('topSignings').innerHTML = stats.topSignings.map((s, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -773,7 +791,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Top plusvalias (beneficios)
         document.getElementById('topSales').innerHTML = stats.topPlusvalias.map((s, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -784,7 +801,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Worst plusvalias (minusvalias / pérdidas)
         document.getElementById('worstSales').innerHTML = stats.worstPlusvalias.map((s, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -795,7 +811,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Most traded
         document.getElementById('mostTraded').innerHTML = stats.mostTraded.map(([player, count], i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -804,7 +819,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Team spending
         document.getElementById('teamSpending').innerHTML = stats.teamSpending.map((t, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -813,7 +827,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Team selling
         document.getElementById('teamSelling').innerHTML = stats.teamSelling.map((t, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -822,7 +835,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Team ROI
         document.getElementById('teamROI').innerHTML = stats.teamROI.map((t, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -833,7 +845,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Jornada earnings ranking
         document.getElementById('jornadaRanking').innerHTML = stats.jornadaRanking.map((t, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -844,7 +855,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Shields ranking
         document.getElementById('shieldsRanking').innerHTML = stats.shieldsRanking.map((t, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -853,7 +863,6 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Average purchase prices
         document.getElementById('avgPrices').innerHTML = stats.avgPrices.map((t, i) => `
             <div class="analytics-item">
                 <span class="analytics-rank">${i + 1}</span>
@@ -862,14 +871,12 @@ const UI = {
             </div>
         `).join('') || '<p>Sin datos</p>';
 
-        // Radar chart
         this.renderRadarChart(stats.teamStats);
     },
 
     renderCharts() {
         const stats = Calculator.getAllTeamStats();
 
-        // Budget chart
         const budgetCtx = document.getElementById('budgetChart').getContext('2d');
         if (window.budgetChart && typeof window.budgetChart.destroy === 'function') {
             window.budgetChart.destroy();
@@ -890,26 +897,17 @@ const UI = {
             options: {
                 responsive: true,
                 indexAxis: 'y',
-                plugins: {
-                    legend: { display: false }
-                },
+                plugins: { legend: { display: false } },
                 scales: {
                     x: {
-                        ticks: {
-                            callback: (value) => this.formatMoney(value),
-                            color: '#888'
-                        },
+                        ticks: { callback: (value) => this.formatMoney(value), color: '#888' },
                         grid: { color: 'rgba(255,255,255,0.05)' }
                     },
-                    y: {
-                        ticks: { color: '#fff' },
-                        grid: { display: false }
-                    }
+                    y: { ticks: { color: '#fff' }, grid: { display: false } }
                 }
             }
         });
 
-        // Balance chart
         const balanceCtx = document.getElementById('balanceChart').getContext('2d');
         if (window.balanceChart && typeof window.balanceChart.destroy === 'function') {
             window.balanceChart.destroy();
@@ -929,64 +927,59 @@ const UI = {
             },
             options: {
                 responsive: true,
-                plugins: {
-                    legend: { display: false }
-                },
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
                 scales: {
                     x: {
-                        ticks: { color: '#fff' },
-                        grid: { display: false }
-                    },
-                    y: {
-                        ticks: {
-                            callback: (value) => this.formatMoney(value),
-                            color: '#888'
-                        },
+                        ticks: { callback: (value) => this.formatMoney(value), color: '#888' },
                         grid: { color: 'rgba(255,255,255,0.05)' }
-                    }
+                    },
+                    y: { ticks: { color: '#fff' }, grid: { display: false } }
                 }
             }
         });
     },
 
     renderRadarChart(teamStats) {
-        const ctx = document.getElementById('radarChart').getContext('2d');
+        const ctx = document.getElementById('radarChart');
+        if (!ctx) return;
+
         if (window.radarChart && typeof window.radarChart.destroy === 'function') {
             window.radarChart.destroy();
         }
 
         const maxValues = {
-            budget: Math.max(...teamStats.map(t => Math.abs(t.currentBudget))),
-            value: Math.max(...teamStats.map(t => t.teamValue)) || 1,
-            movements: Math.max(...teamStats.map(t => t.totalMovements)) || 1,
-            shields: Math.max(...teamStats.map(t => t.shields)) || 1,
-            jornadas: Math.max(...teamStats.map(t => t.jornadaEarnings + t.onceIdealEarnings)) || 1
+            purchases: Math.max(...teamStats.map(t => t.purchases)),
+            sales: Math.max(...teamStats.map(t => t.sales)),
+            jornada: Math.max(...teamStats.map(t => t.jornadaEarnings + t.onceIdealEarnings)),
+            shields: Math.max(...teamStats.map(t => t.shields)),
+            movements: Math.max(...teamStats.map(t => t.totalMovements))
         };
 
         const colors = [
             'rgba(139, 92, 246, 0.7)',
             'rgba(16, 185, 129, 0.7)',
-            'rgba(245, 158, 11, 0.7)',
             'rgba(244, 63, 94, 0.7)',
             'rgba(59, 130, 246, 0.7)',
-            'rgba(6, 182, 212, 0.7)'
+            'rgba(245, 158, 11, 0.7)',
+            'rgba(236, 72, 153, 0.7)'
         ];
 
         window.radarChart = new Chart(ctx, {
             type: 'radar',
             data: {
-                labels: ['Presupuesto', 'Valor Equipo', 'Actividad', 'Blindajes', 'Jornadas'],
+                labels: ['Compras', 'Ventas', 'Jornadas', 'Blindajes', 'Movimientos'],
                 datasets: teamStats.map((team, i) => ({
                     label: team.name,
                     data: [
-                        (team.currentBudget / maxValues.budget) * 100,
-                        (team.teamValue / maxValues.value) * 100,
-                        (team.totalMovements / maxValues.movements) * 100,
-                        (team.shields / maxValues.shields) * 100,
-                        ((team.jornadaEarnings + team.onceIdealEarnings) / maxValues.jornadas) * 100
+                        (team.purchases / maxValues.purchases) * 100 || 0,
+                        (team.sales / maxValues.sales) * 100 || 0,
+                        ((team.jornadaEarnings + team.onceIdealEarnings) / maxValues.jornada) * 100 || 0,
+                        (team.shields / maxValues.shields) * 100 || 0,
+                        (team.totalMovements / maxValues.movements) * 100 || 0
                     ],
-                    backgroundColor: colors[i].replace('0.7', '0.2'),
-                    borderColor: colors[i],
+                    backgroundColor: colors[i % colors.length].replace('0.7', '0.2'),
+                    borderColor: colors[i % colors.length],
                     borderWidth: 2
                 }))
             },
@@ -1005,157 +998,125 @@ const UI = {
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { color: '#fff' }
+                        labels: { color: '#fff', boxWidth: 12 }
                     }
                 }
             }
         });
     },
 
-    previewMovements() {
-        const text = document.getElementById('movementsInput').value;
-        const movements = DataParser.parseMovements(text);
-
-        let newCount = 0;
-        let duplicateCount = 0;
-
-        const previewRows = movements.map(m => {
-            const isDuplicate = DataParser.isDuplicate(m);
-            if (isDuplicate) duplicateCount++; else newCount++;
-
-            return `
-                <tr class="${isDuplicate ? 'preview-row-duplicate' : 'preview-row-new'}">
-                    <td>${isDuplicate ? '⚠️' : '✅'}</td>
-                    <td>${m.date || '-'}</td>
-                    <td>${m.team}</td>
-                    <td>${this.getTypeLabel(m.type)}</td>
-                    <td>${m.player}</td>
-                    <td>${m.amount > 0 ? this.formatMoney(m.amount) : '-'}</td>
-                </tr>
-            `;
-        }).join('');
-
-        document.getElementById('newCount').textContent = newCount;
-        document.getElementById('duplicateCount').textContent = duplicateCount;
-        document.getElementById('previewBody').innerHTML = previewRows;
-        document.getElementById('previewSection').style.display = 'block';
-        document.getElementById('confirmAddMovements').disabled = newCount === 0;
-
-        // Store for confirmation
-        this._pendingMovements = movements.filter(m => !DataParser.isDuplicate(m));
-    },
-
-    confirmMovements() {
-        if (!this._pendingMovements || this._pendingMovements.length === 0) return;
-
-        State.movements.push(...this._pendingMovements);
-        State.calculateSquads();
-        State.saveToStorage();
-
-        this._pendingValues = null;
-    },
-
     showTeamDetail(teamName) {
-        const team = Calculator.getTeamStats(teamName);
-        if (!team) return;
+        const stats = Calculator.getTeamStats(teamName);
+        if (!stats) return;
 
-        document.getElementById('teamDetailTitle').textContent = `📋 ${teamName}`;
-
-        const shieldedPlayers = team.squad.filter(p => p.shielded);
-        const movements = State.movements.filter(m => m.team === teamName).slice(-20).reverse();
-
-        document.getElementById('teamDetailBody').innerHTML = `
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <span class="stat-value">${this.formatMoney(team.currentBudget)}</span>
-                        <span class="stat-label">Presupuesto Actual</span>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <span class="stat-value">${this.formatMoney(team.teamValue)}</span>
-                        <span class="stat-label">Valor del Equipo</span>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-info">
-                        <span class="stat-value">${this.formatMoney(team.maxBid)}</span>
-                        <span class="stat-label">Puja Máxima</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-                <div style="background: var(--bg-glass); padding: 1rem; border-radius: var(--radius-md);">
-                    <h4 style="margin-bottom: 0.5rem;">💰 Compras Totales</h4>
-                    <span style="font-size: 1.25rem; font-weight: 700; color: var(--accent-rose);">${this.formatMoney(team.purchases)}</span>
-                </div>
-                <div style="background: var(--bg-glass); padding: 1rem; border-radius: var(--radius-md);">
-                    <h4 style="margin-bottom: 0.5rem;">💵 Ventas Totales</h4>
-                    <span style="font-size: 1.25rem; font-weight: 700; color: var(--accent-emerald);">${this.formatMoney(team.sales)}</span>
-                </div>
-            </div>
-            
-            ${shieldedPlayers.length > 0 ? `
-                <h4 style="margin-bottom: 0.5rem;">🛡️ Jugadores Blindados (${shieldedPlayers.length})</h4>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem;">
-                    ${shieldedPlayers.map(p => `<span class="type-badge type-blindaje">${p.player}</span>`).join('')}
-                </div>
-            ` : ''}
-            
-            <h4 style="margin-bottom: 0.5rem;">📜 Últimos Movimientos</h4>
-            <div style="max-height: 300px; overflow-y: auto;">
-                ${movements.map(m => `
-                    <div style="display: flex; justify-content: space-between; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">
-                        <span>${m.date || '-'} | <span class="type-badge type-${m.type}">${this.getTypeLabel(m.type)}</span> ${m.player}</span>
-                        <span style="font-weight: 600;">${m.amount > 0 ? this.formatMoney(m.amount) : '-'}</span>
-                    </div>
-                `).join('')}
-            </div>
-        `;
+        document.getElementById('detailTeamName').textContent = teamName;
+        document.getElementById('detailInitialBudget').textContent = this.formatMoney(stats.initialBudget);
+        document.getElementById('detailCurrentBudget').textContent = this.formatMoney(stats.currentBudget);
+        document.getElementById('detailTeamValue').textContent = this.formatMoney(stats.teamValue);
+        document.getElementById('detailMaxBid').textContent = this.formatMoney(stats.maxBid);
+        document.getElementById('detailPurchases').textContent = this.formatMoney(stats.purchases);
+        document.getElementById('detailSales').textContent = this.formatMoney(stats.sales);
+        document.getElementById('detailClausulas').textContent = this.formatMoney(stats.clausulas);
+        document.getElementById('detailJornada').textContent = this.formatMoney(stats.jornadaEarnings + stats.onceIdealEarnings);
+        document.getElementById('detailShields').textContent = stats.shields;
+        document.getElementById('detailROI').textContent = `${stats.roi.toFixed(1)}%`;
 
         this.openModal('modalTeamDetail');
     },
 
+    previewMovements() {
+        const text = document.getElementById('movementsInput').value;
+        const movements = DataParser.parseMovements(text);
+
+        const newMovements = movements.filter(m => !DataParser.isDuplicate(m));
+        const duplicates = movements.length - newMovements.length;
+
+        document.getElementById('previewSection').style.display = 'block';
+        document.getElementById('previewStats').innerHTML = `
+            <p><strong>${movements.length}</strong> movimientos detectados</p>
+            <p><strong>${newMovements.length}</strong> nuevos | <strong>${duplicates}</strong> duplicados</p>
+        `;
+
+        this.pendingMovements = newMovements;
+        document.getElementById('confirmAddMovements').disabled = newMovements.length === 0;
+    },
+
+    confirmMovements() {
+        if (this.pendingMovements && this.pendingMovements.length > 0) {
+            State.movements = [...State.movements, ...this.pendingMovements];
+            State.saveToStorage();
+            State.calculateSquads();
+            this.render();
+            this.closeModal('modalAddMovements');
+            this.showToast(`✅ ${this.pendingMovements.length} movimientos añadidos`, 'success');
+            this.pendingMovements = null;
+        }
+    },
+
+    previewValues() {
+        const text = document.getElementById('valuesInput').value;
+        const values = DataParser.parseTeamValues(text);
+
+        if (Object.keys(values).length > 0) {
+            document.getElementById('valuesPreview').style.display = 'block';
+            document.getElementById('valuesPreview').innerHTML = Object.entries(values)
+                .map(([team, value]) => `<p>${team}: ${this.formatMoney(value)}</p>`)
+                .join('');
+
+            this.pendingValues = values;
+            document.getElementById('confirmUpdateValues').disabled = false;
+        } else {
+            document.getElementById('valuesPreview').innerHTML = '<p style="color: var(--accent-rose)">No se detectaron valores válidos</p>';
+            document.getElementById('valuesPreview').style.display = 'block';
+        }
+    },
+
+    confirmValues() {
+        if (this.pendingValues) {
+            State.teamValues = { ...State.teamValues, ...this.pendingValues };
+            State.saveToStorage();
+            this.render();
+            this.closeModal('modalUpdateValues');
+            this.showToast('✅ Valores actualizados', 'success');
+            this.pendingValues = null;
+        }
+    },
+
     exportCSV() {
-        const headers = ['Fecha', 'Equipo', 'Tipo', 'Jugador', 'De/A', 'Monto'];
+        const headers = ['Fecha', 'Equipo', 'Tipo', 'Jugador', 'De/A', 'Importe'];
         const rows = State.movements.map(m => [
-            m.date || '',
-            m.team,
-            m.type,
-            m.player,
-            m.fromTo,
-            m.amount
+            m.date, m.team, m.type, m.player, m.fromTo, m.amount
         ]);
 
         const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `fantasy_movements_${new Date().toISOString().slice(0, 10)}.csv`;
-        link.click();
-
-        this.showToast('📤 CSV exportado correctamente', 'success');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'movimientos_fantasy.csv';
+        a.click();
+        URL.revokeObjectURL(url);
     },
 
     showToast(message, type = 'info') {
-        const container = document.getElementById('toastContainer');
         const toast = document.createElement('div');
         toast.className = `toast toast-${type}`;
-        toast.innerHTML = message;
-        container.appendChild(toast);
-
-        setTimeout(() => toast.remove(), 4000);
+        toast.textContent = message;
+        toast.style.cssText = `
+            position: fixed; bottom: 20px; right: 20px; padding: 1rem 1.5rem;
+            background: ${type === 'success' ? '#10b981' : type === 'error' ? '#f43f5e' : '#3b82f6'};
+            color: white; border-radius: 0.5rem; z-index: 10000;
+            animation: slideIn 0.3s ease;
+        `;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
     },
 
     formatMoney(amount) {
-        if (amount >= 1000000) {
-            return (amount / 1000000).toFixed(1) + 'M€';
-        } else if (amount >= 1000) {
-            return (amount / 1000).toFixed(0) + 'K€';
-        }
-        return amount.toLocaleString('es-ES') + '€';
+        if (amount >= 1000000000) return `${(amount / 1000000000).toFixed(1)}B€`;
+        if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M€`;
+        if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K€`;
+        return `${amount}€`;
     },
 
     getTypeLabel(type) {
@@ -1171,11 +1132,12 @@ const UI = {
 
     initAuth() {
         const overlay = document.getElementById('loginOverlay');
+        if (!overlay) return;
+
         const input = document.getElementById('loginPassword');
         const btn = document.getElementById('btnLogin');
         const error = document.getElementById('loginError');
 
-        // Check valid session
         if (sessionStorage.getItem(CONFIG.AUTH.SESSION_KEY) === 'true') {
             overlay.style.display = 'none';
             document.body.querySelectorAll('body > *:not(#loginOverlay)').forEach(el => el.style.filter = 'none');
@@ -1184,7 +1146,6 @@ const UI = {
 
         const checkLogin = () => {
             if (input.value === CONFIG.AUTH.PASSWORD) {
-                // Success
                 sessionStorage.setItem(CONFIG.AUTH.SESSION_KEY, 'true');
                 overlay.style.opacity = '0';
                 setTimeout(() => {
@@ -1192,7 +1153,6 @@ const UI = {
                     document.body.querySelectorAll('body > *:not(#loginOverlay)').forEach(el => el.style.filter = 'none');
                 }, 300);
             } else {
-                // Error
                 error.style.display = 'block';
                 input.style.borderColor = '#f43f5e';
                 input.value = '';
@@ -1211,7 +1171,7 @@ const UI = {
 // INITIALIZATION
 // ============================
 document.addEventListener('DOMContentLoaded', () => {
-    UI.initAuth(); // Auth first
+    UI.initAuth();
     State.init();
     UI.init();
 });
