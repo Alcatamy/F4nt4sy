@@ -269,6 +269,7 @@ const DataParser = {
 
         lines.forEach(line => {
             const trimmed = line.trim();
+            // Check if line is a team name
             const matchedTeam = teamNames.find(t =>
                 trimmed.toLowerCase().includes(t.toLowerCase()) ||
                 t.toLowerCase().includes(trimmed.toLowerCase())
@@ -277,14 +278,22 @@ const DataParser = {
             if (matchedTeam) {
                 currentTeam = matchedTeam;
             } else if (currentTeam) {
-                const valueMatch = trimmed.match(/^([\d.]+)$/);
-                if (valueMatch) {
-                    values[currentTeam] = this.parseAmount(valueMatch[1]);
-                    currentTeam = null;
+                // Try to find a numeric value (min 1 million to avoid ranking numbers like "1", "2")
+                // Remove currency symbols, chars, keep only digits and dots
+                const clean = trimmed.replace(/[^\d.]/g, '');
+                if (clean && clean.includes('.')) {
+                    // Check if it looks like a money value
+                    const val = this.parseAmount(clean);
+                    if (val > 1000000) { // arbitrary threshold to ignore "1.020 PFSY" points if mixed
+                        values[currentTeam] = val;
+                        // Don't null currentTeam, keep it until next team found? 
+                        // Usually value comes once. But let's verify.
+                        // Actually, looking at file: "1.102 PFSY" (points) vs "702.151.510".
+                        // Money matches "large number". Points usually small thousand.
+                    }
                 }
             }
         });
-
         return values;
     },
 
