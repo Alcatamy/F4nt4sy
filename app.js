@@ -27,114 +27,58 @@ const CONFIG = {
     }
 };
 
-// ============================
-// STATE MANAGEMENT
-// ============================
-const State = {
-    // ... existing properties
-    movements: [],
-    // ...
+calculateSquads() {
+    this.squads = {};
+    Object.keys(CONFIG.TEAMS).forEach(team => {
+        this.squads[team] = [];
+    });
 
-    teamValues: {},
-    playerValues: {},
-    squads: {},
+    // Sort movements by date
+    const sortedMovements = [...this.movements].sort((a, b) => {
+        const dateA = this.parseDate(a.date);
+        const dateB = this.parseDate(b.date);
+        return dateA - dateB;
+    });
 
-    init() {
-        this.loadFromStorage();
-        this.calculateSquads();
-    },
-
-    loadFromStorage() {
-        try {
-            // Check for injected corrected data
-            if (typeof CORRECTED_MOVEMENTS !== 'undefined' && Array.isArray(CORRECTED_MOVEMENTS)) {
-                console.log('Loading corrected movements from file...');
-                this.movements = CORRECTED_MOVEMENTS;
-                // Save immediately to persist
-                this.saveToStorage();
-
-                // Optional: clear it to prevent re-loading if we wanted, 
-                // but re-loading ensures we always have the "source of truth"
-            } else {
-                const movements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
-                this.movements = movements ? JSON.parse(movements) : [];
-            }
-
-            const teamValues = localStorage.getItem(CONFIG.STORAGE_KEYS.TEAM_VALUES);
-            const playerValues = localStorage.getItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES);
-            const clausulas = localStorage.getItem('fantasy_clausulas');
-
-            this.teamValues = teamValues ? JSON.parse(teamValues) : {};
-            this.playerValues = playerValues ? JSON.parse(playerValues) : {};
-            this.clausulas = clausulas ? JSON.parse(clausulas) : {};
-        } catch (e) {
-            console.error('Error loading from storage:', e);
-        }
-    },
-
-    saveToStorage() {
-        try {
-            localStorage.setItem(CONFIG.STORAGE_KEYS.MOVEMENTS, JSON.stringify(this.movements));
-            localStorage.setItem(CONFIG.STORAGE_KEYS.TEAM_VALUES, JSON.stringify(this.teamValues));
-            localStorage.setItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES, JSON.stringify(this.playerValues));
-            localStorage.setItem('fantasy_clausulas', JSON.stringify(this.clausulas || {}));
-        } catch (e) {
-            console.error('Error saving to storage:', e);
-        }
-    },
-
-    calculateSquads() {
-        this.squads = {};
-        Object.keys(CONFIG.TEAMS).forEach(team => {
-            this.squads[team] = [];
-        });
-
-        // Sort movements by date
-        const sortedMovements = [...this.movements].sort((a, b) => {
-            const dateA = this.parseDate(a.date);
-            const dateB = this.parseDate(b.date);
-            return dateA - dateB;
-        });
-
-        sortedMovements.forEach(mov => {
-            if (mov.type === 'compra') {
-                // Remove player from previous team if exists
-                Object.keys(this.squads).forEach(team => {
-                    this.squads[team] = this.squads[team].filter(p => p.player !== mov.player);
+    sortedMovements.forEach(mov => {
+        if (mov.type === 'compra') {
+            // Remove player from previous team if exists
+            Object.keys(this.squads).forEach(team => {
+                this.squads[team] = this.squads[team].filter(p => p.player !== mov.player);
+            });
+            // Add to new team (only if team exists in our config)
+            if (this.squads[mov.team]) {
+                this.squads[mov.team].push({
+                    player: mov.player,
+                    purchasePrice: mov.amount,
+                    purchaseDate: mov.date,
+                    shielded: false
                 });
-                // Add to new team (only if team exists in our config)
-                if (this.squads[mov.team]) {
-                    this.squads[mov.team].push({
-                        player: mov.player,
-                        purchasePrice: mov.amount,
-                        purchaseDate: mov.date,
-                        shielded: false
-                    });
-                }
-            } else if (mov.type === 'venta') {
-                // Remove from team
-                if (this.squads[mov.team]) {
-                    this.squads[mov.team] = this.squads[mov.team].filter(p => p.player !== mov.player);
-                }
-            } else if (mov.type === 'blindaje') {
-                // Mark as shielded
-                const player = this.squads[mov.team]?.find(p => p.player === mov.player);
-                if (player) {
-                    player.shielded = true;
-                    player.shieldDate = mov.date;
-                }
             }
-        });
-    },
-
-    parseDate(dateStr) {
-        if (!dateStr) return new Date(0);
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-            return new Date(parts[2], parts[1] - 1, parts[0]);
+        } else if (mov.type === 'venta') {
+            // Remove from team
+            if (this.squads[mov.team]) {
+                this.squads[mov.team] = this.squads[mov.team].filter(p => p.player !== mov.player);
+            }
+        } else if (mov.type === 'blindaje') {
+            // Mark as shielded
+            const player = this.squads[mov.team]?.find(p => p.player === mov.player);
+            if (player) {
+                player.shielded = true;
+                player.shieldDate = mov.date;
+            }
         }
-        return new Date(0);
+    });
+},
+
+parseDate(dateStr) {
+    if (!dateStr) return new Date(0);
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+        return new Date(parts[2], parts[1] - 1, parts[0]);
     }
+    return new Date(0);
+}
 };
 
 // ============================
@@ -189,7 +133,23 @@ const DataParser = {
 
     parseContent(content, date) {
         // Compra: "Team ha comprado al jugador Player de FromTeam por Amount€"
-        const compraMatch = content.match(/^(.+?)\s+ha comprado al jugador\s+(.+?)\s+de\s+(.+?)\s+por\s+([\d.]+)€?$/i);
+        // Improved Regex:
+        // 1. Handles extra spaces between words.
+        // 2. Handles diverse currency symbols (Euro sign can be encoded differently or missing).
+        // 3. Normalized "de" and "por".
+
+        // Regex explanation:
+        // ^(.+?)                  -> Group 1: Buyer Team (lazy)
+        // \s+ha comprado al jugador\s+ -> Fixed phrase with spaces
+        // (.+?)                   -> Group 2: Player Name (lazy)
+        // \s+de\s+                -> " de "
+        // (.+?)                   -> Group 3: Seller Team (lazy)
+        // \s+por\s+               -> " por "
+        // ([\d.]+)                -> Group 4: Amount (digits and dots)
+        // [€Ôé¼]?                 -> Optional currency symbol (Euro or corrupted UTF-8)
+
+        const compraMatch = content.match(/^(.+?)\s+ha comprado al jugador\s+(.+?)\s+de\s+(.+?)\s+por\s+([\d.]+)[€Ôé¼]?.*$/i);
+
         if (compraMatch) {
             return {
                 date,
@@ -416,172 +376,148 @@ const Calculator = {
             }
         });
 
-        // Add money received from inter-team sales (when others bought FROM this team)
-        interTeamSalesToMe.forEach(m => {
-            sales += m.amount;
-        });
-
-        // Use dynamic clausulas if available, otherwise config default
-        const clausulas = (State.clausulas && State.clausulas[teamName]) !== undefined
-            ? State.clausulas[teamName]
-            : (team.clausulas || 0);
-        const currentBudget = team.initialBudget + sales - purchases - clausulas + jornadaEarnings + onceIdealEarnings;
-        const teamValue = State.teamValues[teamName] || 0;
-        const maxBid = currentBudget + (teamValue * CONFIG.MAX_DEBT_PERCENT);
-        const balance = sales - purchases - clausulas;
-        const roi = purchases > 0 ? ((sales / purchases) - 1) * 100 : 0;
-
-        return {
-            name: teamName,
-            initialBudget: team.initialBudget,
-            clausulas,
-            currentBudget,
-            teamValue,
-            maxBid,
-            balance,
-            purchases,
-            sales,
+        sales,
             jornadaEarnings,
             onceIdealEarnings,
             shields,
             roi,
             totalMovements: movements.length,
-            squad: State.squads[teamName] || []
-        };
-    },
+                squad: State.squads[teamName] || []
+    };
+},
 
     getAllTeamStats() {
         return Object.keys(CONFIG.TEAMS).map(team => this.getTeamStats(team));
     },
 
-    getGlobalStats() {
-        const allMovements = State.movements;
-        const teamStats = this.getAllTeamStats();
+        getGlobalStats() {
+    const allMovements = State.movements;
+    const teamStats = this.getAllTeamStats();
 
-        // Total market volume
-        const totalVolume = allMovements
-            .filter(m => m.type === 'compra' || m.type === 'venta')
-            .reduce((sum, m) => sum + m.amount, 0);
+    // Total market volume
+    const totalVolume = allMovements
+        .filter(m => m.type === 'compra' || m.type === 'venta')
+        .reduce((sum, m) => sum + m.amount, 0);
 
-        // Most expensive signing
-        const purchases = allMovements.filter(m => m.type === 'compra');
-        const mostExpensive = purchases.reduce((max, m) => m.amount > (max?.amount || 0) ? m : max, null);
+    // Most expensive signing
+    const purchases = allMovements.filter(m => m.type === 'compra');
+    const mostExpensive = purchases.reduce((max, m) => m.amount > (max?.amount || 0) ? m : max, null);
 
-        // Most active team
-        const teamCounts = {};
-        allMovements.forEach(m => {
-            teamCounts[m.team] = (teamCounts[m.team] || 0) + 1;
-        });
-        const mostActive = Object.entries(teamCounts).reduce((max, [team, count]) =>
-            count > (max?.count || 0) ? { team, count } : max, null);
+    // Most active team
+    const teamCounts = {};
+    allMovements.forEach(m => {
+        teamCounts[m.team] = (teamCounts[m.team] || 0) + 1;
+    });
+    const mostActive = Object.entries(teamCounts).reduce((max, [team, count]) =>
+        count > (max?.count || 0) ? { team, count } : max, null);
 
-        // Most traded player
-        const playerTrades = {};
-        allMovements.filter(m => m.type === 'compra' || m.type === 'venta').forEach(m => {
-            playerTrades[m.player] = (playerTrades[m.player] || 0) + 1;
-        });
-        const mostTraded = Object.entries(playerTrades)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
+    // Most traded player
+    const playerTrades = {};
+    allMovements.filter(m => m.type === 'compra' || m.type === 'venta').forEach(m => {
+        playerTrades[m.player] = (playerTrades[m.player] || 0) + 1;
+    });
+    const mostTraded = Object.entries(playerTrades)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
 
-        // Top signings
-        const topSignings = [...purchases]
-            .sort((a, b) => b.amount - a.amount)
-            .slice(0, 10);
+    // Top signings
+    const topSignings = [...purchases]
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 10);
 
-        // Calculate plusvalias and minusvalias
-        const playerPurchases = {};
-        const playerSales = {};
+    // Calculate plusvalias and minusvalias
+    const playerPurchases = {};
+    const playerSales = {};
 
-        allMovements.forEach(m => {
-            if (m.type === 'compra') {
-                if (!playerPurchases[m.player]) playerPurchases[m.player] = [];
-                playerPurchases[m.player].push(m);
-            } else if (m.type === 'venta') {
-                if (!playerSales[m.player]) playerSales[m.player] = [];
-                playerSales[m.player].push(m);
+    allMovements.forEach(m => {
+        if (m.type === 'compra') {
+            if (!playerPurchases[m.player]) playerPurchases[m.player] = [];
+            playerPurchases[m.player].push(m);
+        } else if (m.type === 'venta') {
+            if (!playerSales[m.player]) playerSales[m.player] = [];
+            playerSales[m.player].push(m);
+        }
+    });
+
+    const plusvalias = [];
+    Object.keys(playerSales).forEach(player => {
+        const sales = playerSales[player] || [];
+        const purchasesForPlayer = playerPurchases[player] || [];
+
+        sales.forEach((sale, i) => {
+            const purchase = purchasesForPlayer[i];
+            if (purchase) {
+                plusvalias.push({
+                    player,
+                    purchasePrice: purchase.amount,
+                    salePrice: sale.amount,
+                    profit: sale.amount - purchase.amount,
+                    profitPercent: purchase.amount > 0 ? ((sale.amount - purchase.amount) / purchase.amount * 100) : 0,
+                    team: sale.team
+                });
             }
         });
+    });
 
-        const plusvalias = [];
-        Object.keys(playerSales).forEach(player => {
-            const sales = playerSales[player] || [];
-            const purchasesForPlayer = playerPurchases[player] || [];
+    // Top plusvalías (benefits)
+    const topPlusvalias = plusvalias
+        .filter(p => p.profit > 0)
+        .sort((a, b) => b.profit - a.profit)
+        .slice(0, 10);
 
-            sales.forEach((sale, i) => {
-                const purchase = purchasesForPlayer[i];
-                if (purchase) {
-                    plusvalias.push({
-                        player,
-                        purchasePrice: purchase.amount,
-                        salePrice: sale.amount,
-                        profit: sale.amount - purchase.amount,
-                        profitPercent: purchase.amount > 0 ? ((sale.amount - purchase.amount) / purchase.amount * 100) : 0,
-                        team: sale.team
-                    });
-                }
-            });
-        });
+    // Top minusvalías (losses)
+    const worstPlusvalias = plusvalias
+        .filter(p => p.profit < 0)
+        .sort((a, b) => a.profit - b.profit)
+        .slice(0, 10);
 
-        // Top plusvalías (benefits)
-        const topPlusvalias = plusvalias
-            .filter(p => p.profit > 0)
-            .sort((a, b) => b.profit - a.profit)
-            .slice(0, 10);
+    // Team rankings - by spending
+    const teamSpending = [...teamStats]
+        .sort((a, b) => b.purchases - a.purchases);
 
-        // Top minusvalías (losses)
-        const worstPlusvalias = plusvalias
-            .filter(p => p.profit < 0)
-            .sort((a, b) => a.profit - b.profit)
-            .slice(0, 10);
+    // Team rankings - by selling
+    const teamSelling = [...teamStats]
+        .sort((a, b) => b.sales - a.sales);
 
-        // Team rankings - by spending
-        const teamSpending = [...teamStats]
-            .sort((a, b) => b.purchases - a.purchases);
+    // Team rankings - by ROI
+    const teamROI = [...teamStats]
+        .sort((a, b) => b.roi - a.roi);
 
-        // Team rankings - by selling
-        const teamSelling = [...teamStats]
-            .sort((a, b) => b.sales - a.sales);
+    // Team rankings - by jornada earnings
+    const jornadaRanking = [...teamStats]
+        .sort((a, b) => (b.jornadaEarnings + b.onceIdealEarnings) - (a.jornadaEarnings + a.onceIdealEarnings));
 
-        // Team rankings - by ROI
-        const teamROI = [...teamStats]
-            .sort((a, b) => b.roi - a.roi);
+    // Team rankings - by shields
+    const shieldsRanking = [...teamStats]
+        .sort((a, b) => b.shields - a.shields);
 
-        // Team rankings - by jornada earnings
-        const jornadaRanking = [...teamStats]
-            .sort((a, b) => (b.jornadaEarnings + b.onceIdealEarnings) - (a.jornadaEarnings + a.onceIdealEarnings));
+    // Average purchase price per team
+    const avgPrices = teamStats.map(team => {
+        const teamPurchases = purchases.filter(p => p.team === team.name);
+        const avg = teamPurchases.length > 0
+            ? teamPurchases.reduce((s, p) => s + p.amount, 0) / teamPurchases.length
+            : 0;
+        return { ...team, avgPurchase: avg, purchaseCount: teamPurchases.length };
+    }).sort((a, b) => b.avgPurchase - a.avgPurchase);
 
-        // Team rankings - by shields
-        const shieldsRanking = [...teamStats]
-            .sort((a, b) => b.shields - a.shields);
-
-        // Average purchase price per team
-        const avgPrices = teamStats.map(team => {
-            const teamPurchases = purchases.filter(p => p.team === team.name);
-            const avg = teamPurchases.length > 0
-                ? teamPurchases.reduce((s, p) => s + p.amount, 0) / teamPurchases.length
-                : 0;
-            return { ...team, avgPurchase: avg, purchaseCount: teamPurchases.length };
-        }).sort((a, b) => b.avgPurchase - a.avgPurchase);
-
-        return {
-            totalVolume,
-            totalMovements: allMovements.length,
-            mostExpensive,
-            mostActive,
-            mostTraded,
-            topSignings,
-            topPlusvalias,
-            worstPlusvalias,
-            teamSpending,
-            teamSelling,
-            teamROI,
-            jornadaRanking,
-            shieldsRanking,
-            avgPrices,
-            teamStats
-        };
-    }
+    return {
+        totalVolume,
+        totalMovements: allMovements.length,
+        mostExpensive,
+        mostActive,
+        mostTraded,
+        topSignings,
+        topPlusvalias,
+        worstPlusvalias,
+        teamSpending,
+        teamSelling,
+        teamROI,
+        jornadaRanking,
+        shieldsRanking,
+        avgPrices,
+        teamStats
+    };
+}
 };
 
 // ============================
@@ -617,9 +553,19 @@ const UI = {
         });
 
         document.getElementById('btnPreviewMovements').addEventListener('click', () => this.previewMovements());
-        document.getElementById('confirmAddMovements').addEventListener('click', () => this.confirmMovements());
+        // Clausulas UI
+        document.getElementById('btnAddClausula').addEventListener('click', () => this.addClausula());
 
-        // Values update
+        // Populate Team Select
+        const teamSelect = document.getElementById('clausulaTeam');
+        Object.keys(CONFIG.TEAMS).forEach(team => {
+            const option = document.createElement('option');
+            option.value = team;
+            option.textContent = team;
+            teamSelect.appendChild(option);
+        });
+
+        // Values update (Modified to remove clausulas toggle logic as it is now separate)
         document.getElementById('previewValues').addEventListener('click', () => this.previewValues());
         document.getElementById('confirmUpdateValues').addEventListener('click', () => this.confirmValues());
 
@@ -690,6 +636,7 @@ const UI = {
         this.renderDashboard();
         this.renderFilters();
         this.renderMovementsTable();
+        this.renderClausulas();
         this.renderCharts();
     },
 
@@ -776,36 +723,6 @@ const UI = {
 
     renderMovementsTable() {
         const filterTeam = document.getElementById('filterTeam').value;
-        const filterType = document.getElementById('filterType').value;
-        const filterPlayer = document.getElementById('filterPlayer').value.toLowerCase();
-
-        // Sort movements by date (newest first)
-        let movements = [...State.movements].sort((a, b) => {
-            const dateA = State.parseDate(a.date);
-            const dateB = State.parseDate(b.date);
-            return dateB - dateA; // Descending order (newest first)
-        });
-
-        if (filterTeam) movements = movements.filter(m => m.team === filterTeam);
-        if (filterType) movements = movements.filter(m => m.type === filterType);
-        if (filterPlayer) movements = movements.filter(m => m.player.toLowerCase().includes(filterPlayer));
-
-        const tbody = document.getElementById('movementsBody');
-        tbody.innerHTML = movements.slice(0, 200).map(m => `
-            <tr>
-                <td>${m.date || '-'}</td>
-                <td>${m.team}</td>
-                <td><span class="type-badge type-${m.type}">${this.getTypeLabel(m.type)}</span></td>
-                <td>${m.player}</td>
-                <td>${m.fromTo}</td>
-                <td>${m.amount > 0 ? this.formatMoney(m.amount) : '-'}</td>
-            </tr>
-        `).join('');
-    },
-
-    renderSquads() {
-        const stats = Calculator.getAllTeamStats();
-        const grid = document.getElementById('squadsGrid');
 
         grid.innerHTML = stats.map(team => {
             const players = team.squad.map(p => {

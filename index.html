@@ -121,6 +121,7 @@
                 <button class="nav-tab active" data-tab="dashboard">Dashboard</button>
                 <button class="nav-tab" data-tab="movements">Movimientos</button>
                 <button class="nav-tab" data-tab="squads">Plantillas</button>
+                <button class="nav-tab" data-tab="clausulas">Cláusulas</button>
                 <button class="nav-tab" data-tab="analytics">Analytics</button>
             </nav>
             <div class="header-actions">
@@ -233,6 +234,68 @@
             <h2 class="section-title">👥 Plantillas Actuales</h2>
             <div class="squads-grid" id="squadsGrid">
                 <!-- Squad cards will be rendered here -->
+            </div>
+        </section>
+
+        <!-- Clausulas Tab -->
+        <section class="tab-content" id="clausulas">
+            <h2 class="section-title">💸 Historial de Cláusulas</h2>
+
+            <div class="clausulas-container">
+                <!-- Form to add single clausula -->
+                <div class="clausulas-form-card">
+                    <h3>Añadir Pago de Cláusula</h3>
+                    <div class="clausulas-form">
+                        <div class="form-group">
+                            <label>Equipo que Paga</label>
+                            <select id="clausulaTeam" class="form-select">
+                                <!-- Options populated by JS -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Jugador</label>
+                            <input type="text" id="clausulaPlayer" class="form-input" placeholder="Nombre del jugador">
+                        </div>
+                        <div class="form-group">
+                            <label>Monto (€)</label>
+                            <input type="text" id="clausulaAmount" class="form-input" placeholder="Ej: 10.000.000">
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha</label>
+                            <input type="date" id="clausulaDate" class="form-input">
+                        </div>
+                        <button class="btn btn-primary" id="btnAddClausula">Añadir Pago</button>
+                    </div>
+                </div>
+
+                <!-- Summary Chart -->
+                <div class="clausulas-stats">
+                    <div class="stat-card">
+                        <span class="stat-icon">💸</span>
+                        <div class="stat-info">
+                            <span class="stat-value" id="totalClausulasAmount">0€</span>
+                            <span class="stat-label">Total Gasto en Cláusulas</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- List of Clausulas -->
+            <div class="table-container header-margin-top">
+                <table class="movements-table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Equipo Pagador</th>
+                            <th>Jugador</th>
+                            <th>Monto</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="clausulasBody">
+                        <!-- Clausulas rows -->
+                    </tbody>
+                </table>
             </div>
         </section>
 
