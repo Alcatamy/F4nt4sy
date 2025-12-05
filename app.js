@@ -39,7 +39,6 @@ const State = {
 
     loadFromStorage() {
         try {
-<<<<<<< HEAD
             // Check for injected corrected data
             if (typeof CORRECTED_MOVEMENTS !== 'undefined' && Array.isArray(CORRECTED_MOVEMENTS)) {
                 console.log('Loading corrected movements from file...');
@@ -61,15 +60,6 @@ const State = {
             this.teamValues = teamValues ? JSON.parse(teamValues) : {};
             this.playerValues = playerValues ? JSON.parse(playerValues) : {};
             this.clausulas = clausulas ? JSON.parse(clausulas) : {};
-=======
-            const movements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
-            const teamValues = localStorage.getItem(CONFIG.STORAGE_KEYS.TEAM_VALUES);
-            const playerValues = localStorage.getItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES);
-
-            this.movements = movements ? JSON.parse(movements) : [];
-            this.teamValues = teamValues ? JSON.parse(teamValues) : {};
-            this.playerValues = playerValues ? JSON.parse(playerValues) : {};
->>>>>>> 184bf2969e8d1712c712a12c117f8ad7e4da8055
         } catch (e) {
             console.error('Error loading from storage:', e);
         }
@@ -80,10 +70,7 @@ const State = {
             localStorage.setItem(CONFIG.STORAGE_KEYS.MOVEMENTS, JSON.stringify(this.movements));
             localStorage.setItem(CONFIG.STORAGE_KEYS.TEAM_VALUES, JSON.stringify(this.teamValues));
             localStorage.setItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES, JSON.stringify(this.playerValues));
-<<<<<<< HEAD
             localStorage.setItem('fantasy_clausulas', JSON.stringify(this.clausulas || {}));
-=======
->>>>>>> 184bf2969e8d1712c712a12c117f8ad7e4da8055
         } catch (e) {
             console.error('Error saving to storage:', e);
         }
@@ -289,14 +276,10 @@ const DataParser = {
     },
 
     generateHash(movement) {
-<<<<<<< HEAD
         // Unique key: Type | Team | Player | Amount
         // Date is EXCLUDED to catch duplicates where one has a date and the other doesn't
         // or if they have slightly different dates but represent the same transaction.
         const str = `${movement.type}|${movement.team}|${movement.player}|${movement.amount}`;
-=======
-        const str = `${movement.date}|${movement.team}|${movement.type}|${movement.player}|${movement.amount}`;
->>>>>>> 184bf2969e8d1712c712a12c117f8ad7e4da8055
         let hash = 0;
         for (let i = 0; i < str.length; i++) {
             const char = str.charCodeAt(i);
@@ -337,7 +320,6 @@ const DataParser = {
         return values;
     },
 
-<<<<<<< HEAD
     parseClausulas(text) {
         const lines = text.trim().split('\n').filter(line => line.trim());
         const values = {};
@@ -387,9 +369,6 @@ const DataParser = {
 
         return values;
     },
-
-=======
->>>>>>> 184bf2969e8d1712c712a12c117f8ad7e4da8055
     isDuplicate(movement) {
         return State.movements.some(m => m.id === movement.id);
     }
@@ -435,14 +414,10 @@ const Calculator = {
             sales += m.amount;
         });
 
-<<<<<<< HEAD
         // Use dynamic clausulas if available, otherwise config default
         const clausulas = (State.clausulas && State.clausulas[teamName]) !== undefined
             ? State.clausulas[teamName]
             : (team.clausulas || 0);
-=======
-        const clausulas = team.clausulas || 0;
->>>>>>> 184bf2969e8d1712c712a12c117f8ad7e4da8055
         const currentBudget = team.initialBudget + sales - purchases - clausulas + jornadaEarnings + onceIdealEarnings;
         const teamValue = State.teamValues[teamName] || 0;
         const maxBid = currentBudget + (teamValue * CONFIG.MAX_DEBT_PERCENT);
@@ -649,7 +624,6 @@ const UI = {
         // Export
         document.getElementById('btnExportCSV').addEventListener('click', () => this.exportCSV());
 
-<<<<<<< HEAD
         // Update Values Toggle
         document.querySelectorAll('input[name="updateType"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
@@ -664,9 +638,6 @@ const UI = {
                 }
             });
         });
-
-=======
->>>>>>> 184bf2969e8d1712c712a12c117f8ad7e4da8055
         // Close modals on outside click
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
