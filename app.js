@@ -8,12 +8,12 @@
 // ============================
 const CONFIG = {
     TEAMS: {
-        'GOLENCIERRO FC': { initialBudget: 103000000 },
-        'Vigar24': { initialBudget: 103000000 },
-        'Visite La Manga FC': { initialBudget: 103000000 },
-        'Pablinistan FC': { initialBudget: 103000000 },
-        'Alcatamy eSports By': { initialBudget: 100000000 },
-        'Morenazos FC': { initialBudget: 103000000 }
+        'GOLENCIERRO FC': { initialBudget: 103000000, aliases: [] },
+        'Vigar24': { initialBudget: 103000000, aliases: ['Vigar FC'] },
+        'Visite La Manga FC': { initialBudget: 103000000, aliases: [] },
+        'Pablinistan FC': { initialBudget: 103000000, aliases: [] },
+        'Alcatamy eSports By': { initialBudget: 100000000, aliases: ['Alcatamy'] },
+        'Morenazos FC': { initialBudget: 103000000, aliases: [] }
     },
     MAX_DEBT_PERCENT: 0.20,
     AUTH: {
@@ -44,17 +44,48 @@ const State = {
 
     loadFromStorage() {
         try {
-            // Load movements from localStorage only (user imports data manually)
-            const movements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
-            this.movements = movements ? JSON.parse(movements) : [];
+            // Check if we have data in storage
+            const savedMovements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
+
+            // If no data and OFFICIAL_DATA exists, initialize with it
+            if (!savedMovements && typeof OFFICIAL_DATA !== 'undefined') {
+                console.log('Initializing with OFFICIAL_DATA...');
+
+                // 1. Initial Movements
+                if (OFFICIAL_DATA.movementsRaw) {
+                    // Use \n to join lines so parseMovements treats it as a full text
+                    this.movements = DataParser.parseMovements(OFFICIAL_DATA.movementsRaw.join('\n'));
+                }
+
+                // 2. Initial Clausulas
+                if (OFFICIAL_DATA.clausulas) {
+                    const today = new Date();
+                    const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+
+                    this.clausulasHistory = OFFICIAL_DATA.clausulas.map(c => ({
+                        id: 'init_' + Math.random().toString(36).substr(2, 9),
+                        date: formattedDate,
+                        team: DataParser.normalizeTeamName(c.team),
+                        player: 'Ajuste Clausulas (Oficial)',
+                        amount: c.amount
+                    }));
+                }
+
+                this.saveToStorage();
+                // Don't return, let it flow to load variables properly initialized above
+                // Actually, if we set this.movements and this.clausulasHistory directly, we just need to load others.
+            } else {
+                this.movements = savedMovements ? JSON.parse(savedMovements) : [];
+                const clausulasHistory = localStorage.getItem('fantasy_clausulas_history');
+                this.clausulasHistory = clausulasHistory ? JSON.parse(clausulasHistory) : [];
+            }
 
             const teamValues = localStorage.getItem(CONFIG.STORAGE_KEYS.TEAM_VALUES);
             const playerValues = localStorage.getItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES);
-            const clausulasHistory = localStorage.getItem('fantasy_clausulas_history');
 
             this.teamValues = teamValues ? JSON.parse(teamValues) : {};
             this.playerValues = playerValues ? JSON.parse(playerValues) : {};
-            this.clausulasHistory = clausulasHistory ? JSON.parse(clausulasHistory) : [];
+
         } catch (e) {
             console.error('Error loading from storage:', e);
         }
@@ -233,9 +264,19 @@ const DataParser = {
         const normalized = name.replace(/\s+/g, ' ').trim();
         const teams = Object.keys(CONFIG.TEAMS);
 
+        // 1. Exact match
         const exactMatch = teams.find(t => t.toLowerCase() === normalized.toLowerCase());
         if (exactMatch) return exactMatch;
 
+        // 2. Alias match
+        for (const team of teams) {
+            const aliases = CONFIG.TEAMS[team].aliases || [];
+            if (aliases.some(alias => alias.toLowerCase() === normalized.toLowerCase())) {
+                return team;
+            }
+        }
+
+        // 3. StartsWith match (fallback)
         const startsWithMatch = teams.find(t =>
             normalized.toLowerCase().startsWith(t.toLowerCase()) ||
             t.toLowerCase().startsWith(normalized.toLowerCase())
