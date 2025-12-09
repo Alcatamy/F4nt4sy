@@ -1,11 +1,25 @@
-# Development tools
-*.py
+# Development tools and temporary files
 *.txt
 *.csv
 *.xlsx
 *.json
 
-# Logs and system files
-*.log
+# ADB/UI dumps
+ui_*.xml
+
+# Python tools (keep local only)
+*.py
+__pycache__/
+*.pyc
+
+# Local data files (not for production)
+google_sheet_data.csv
+comparison_report.txt
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
 Thumbs.db
