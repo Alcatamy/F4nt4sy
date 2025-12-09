@@ -44,14 +44,9 @@ const State = {
 
     loadFromStorage() {
         try {
-            if (typeof CORRECTED_MOVEMENTS !== 'undefined' && Array.isArray(CORRECTED_MOVEMENTS)) {
-                console.log('Loading corrected movements from file...');
-                this.movements = CORRECTED_MOVEMENTS;
-                this.saveToStorage();
-            } else {
-                const movements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
-                this.movements = movements ? JSON.parse(movements) : [];
-            }
+            // Load movements from localStorage only (user imports data manually)
+            const movements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
+            this.movements = movements ? JSON.parse(movements) : [];
 
             const teamValues = localStorage.getItem(CONFIG.STORAGE_KEYS.TEAM_VALUES);
             const playerValues = localStorage.getItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES);
