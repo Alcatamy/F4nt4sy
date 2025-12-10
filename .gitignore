@@ -9,6 +9,9 @@ ui_*.xml
 
 # Python tools (keep local only)
 *.py
+!scrape_fantasy.py
+!adb_scraper.py
+!regen_data.py
 __pycache__/
 *.pyc
 
