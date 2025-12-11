@@ -538,6 +538,7 @@ const Calculator = {
 
         const currentBudget = team.initialBudget + sales - purchases - clausulasTotal + jornadaEarnings + onceIdealEarnings;
         const teamValue = State.teamValues[teamName] || 0;
+        const patrimony = currentBudget + teamValue; // Total wealth = budget + team value
         const maxBid = currentBudget + (teamValue * CONFIG.MAX_DEBT_PERCENT);
         const balance = sales - purchases - clausulasTotal;
         const roi = purchases > 0 ? ((sales / purchases) - 1) * 100 : 0;
@@ -548,6 +549,7 @@ const Calculator = {
             clausulas: clausulasTotal,
             currentBudget,
             teamValue,
+            patrimony,
             maxBid,
             balance,
             purchases,
@@ -962,6 +964,10 @@ const UI = {
                     <div class="team-stat">
                         <span class="team-stat-label">📈 Valor Equipo</span>
                         <span class="team-stat-value">${this.formatMoney(team.teamValue)}</span>
+                    </div>
+                    <div class="team-stat">
+                        <span class="team-stat-label">👑 Patrimonio</span>
+                        <span class="team-stat-value" style="color: #f59e0b;">${this.formatMoney(team.patrimony)}</span>
                     </div>
                     <div class="team-stat">
                         <span class="team-stat-label">🎯 Puja Máxima</span>
