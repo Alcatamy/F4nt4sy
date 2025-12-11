@@ -187,19 +187,77 @@ const DataParser = {
         const lines = text.trim().split('\n').filter(line => line.trim());
         const movements = [];
 
-        lines.forEach(line => {
-            const parsed = this.parseLine(line.trim());
-            if (parsed) {
-                parsed.id = this.generateHash(parsed);
-                parsed.raw = line.trim();
-                movements.push(parsed);
+        // Multi-line format detection:
+        // Format 1: "DD/MM/YYYY | content" (single line, legacy)
+        // Format 2: Multi-line from app paste:
+        //   [Operación de mercado | Blindaje | 11 ideal | ...]
+        //   Team ha comprado/vendido/blindado...
+        //   [HH:MM | DD/MM/YYYY]
+
+        let i = 0;
+        while (i < lines.length) {
+            const line = lines[i].trim();
+
+            // Try legacy format first (DD/MM/YYYY | content)
+            const legacyMatch = line.match(/^(\d{2}\/\d{2}\/\d{4})\s*\|\s*(.+)$/);
+            if (legacyMatch) {
+                const parsed = this.parseContent(legacyMatch[2], legacyMatch[1]);
+                if (parsed) {
+                    parsed.id = this.generateHash(parsed);
+                    parsed.raw = line;
+                    movements.push(parsed);
+                }
+                i++;
+                continue;
             }
-        });
+
+            // Skip header lines (Operación de mercado, Blindaje, 11 ideal, etc.)
+            if (/^(Operación de mercado|Blindaje|11 ideal|Compra|Venta|Mercado)$/i.test(line)) {
+                i++;
+                continue;
+            }
+
+            // Check if this line contains a movement action
+            const isMovementLine = /ha (comprado|vendido|blindado|ganado)/i.test(line);
+
+            if (isMovementLine) {
+                // Look for date/time in next line
+                let date = '';
+                const nextLine = lines[i + 1]?.trim() || '';
+
+                // Check if next line is a date (DD/MM/YYYY)
+                if (/^\d{2}\/\d{2}\/\d{4}$/.test(nextLine)) {
+                    date = nextLine;
+                    i++; // Consume the date line
+                }
+                // Check if next line is a time (HH:MM) - use today's date
+                else if (/^\d{2}:\d{2}$/.test(nextLine)) {
+                    const today = new Date();
+                    date = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+                    i++; // Consume the time line
+                }
+                // No date found, use today
+                else {
+                    const today = new Date();
+                    date = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+                }
+
+                const parsed = this.parseContent(line, date);
+                if (parsed) {
+                    parsed.id = this.generateHash(parsed);
+                    parsed.raw = line;
+                    movements.push(parsed);
+                }
+            }
+
+            i++;
+        }
 
         return movements;
     },
 
     parseLine(line) {
+        // Legacy single-line format support
         let date = '';
         let content = line;
 
