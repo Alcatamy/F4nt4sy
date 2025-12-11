@@ -86,6 +86,19 @@ const State = {
                 this.clausulasHistory = safeLoad('fantasy_clausulas_history', []);
             }
 
+            // CRITICAL: Re-normalize ALL team names to handle alias updates
+            // This ensures consistency even if data was saved before alias was added
+            this.movements = this.movements.map(m => ({
+                ...m,
+                team: DataParser.normalizeTeamName(m.team || ''),
+                fromTo: DataParser.normalizeTeamName(m.fromTo || '')
+            }));
+
+            this.clausulasHistory = this.clausulasHistory.map(c => ({
+                ...c,
+                team: DataParser.normalizeTeamName(c.team || '')
+            }));
+
             this.teamValues = safeLoad(CONFIG.STORAGE_KEYS.TEAM_VALUES, {});
             this.playerValues = safeLoad(CONFIG.STORAGE_KEYS.PLAYER_VALUES, {});
 
@@ -534,6 +547,144 @@ const Calculator = {
             avgPrices,
             teamStats
         };
+    },
+
+    /**
+     * FINANCIAL AUDIT: Validates money conservation across all teams
+     * The sum of all team budgets should equal:
+     * - Sum of initial budgets
+     * - Plus: All earnings from system (jornada, 11 ideal, sales to LALIGA)
+     * - Minus: All costs to system (purchases from LALIGA, clausulas)
+     */
+    validateMoneyConservation() {
+        const teamStats = this.getAllTeamStats();
+        const teams = Object.keys(CONFIG.TEAMS);
+
+        // Calculate total current money in the league
+        const totalCurrentMoney = teamStats.reduce((sum, t) => sum + t.currentBudget, 0);
+
+        // Calculate expected initial money
+        const totalInitialMoney = Object.values(CONFIG.TEAMS).reduce((sum, t) => sum + t.initialBudget, 0);
+
+        // Calculate system flows (money entering/leaving the league)
+        let systemIncome = 0;  // Money entering from outside (jornada, 11 ideal, sales to LALIGA)
+        let systemCosts = 0;   // Money leaving (purchases from LALIGA, clausulas)
+
+        State.movements.forEach(m => {
+            if (m.type === 'jornada' || m.type === 'once_ideal') {
+                systemIncome += m.amount;
+            }
+            if (m.type === 'venta' && m.fromTo === 'LALIGA') {
+                systemIncome += m.amount;
+            }
+            if (m.type === 'compra' && m.fromTo === 'LALIGA') {
+                systemCosts += m.amount;
+            }
+        });
+
+        // Clausulas are costs to system
+        const totalClausulas = State.clausulasHistory.reduce((sum, c) => sum + c.amount, 0);
+        systemCosts += totalClausulas;
+
+        const expectedTotal = totalInitialMoney + systemIncome - systemCosts;
+        const difference = totalCurrentMoney - expectedTotal;
+        const isBalanced = Math.abs(difference) < 1; // Allow 1€ rounding error
+
+        return {
+            isBalanced,
+            totalCurrentMoney,
+            expectedTotal,
+            difference,
+            breakdown: {
+                initialMoney: totalInitialMoney,
+                systemIncome,
+                systemCosts,
+                totalClausulas
+            },
+            perTeam: teamStats.map(t => ({
+                team: t.name,
+                budget: t.currentBudget,
+                purchases: t.purchases,
+                sales: t.sales,
+                clausulas: t.clausulas,
+                earnings: t.jornadaEarnings + t.onceIdealEarnings
+            }))
+        };
+    },
+
+    /**
+     * FINANCIAL AUDIT: Tests that inter-team transfers conserve money
+     * If TeamA buys from TeamB, the sum of their budgets should remain constant
+     */
+    testTransferConservation(buyerName, sellerName) {
+        const buyerStats = this.getTeamStats(buyerName);
+        const sellerStats = this.getTeamStats(sellerName);
+
+        if (!buyerStats || !sellerStats) {
+            return { error: 'One or both teams not found' };
+        }
+
+        // Find all transfers between these two teams
+        const transfers = State.movements.filter(m =>
+            m.type === 'compra' &&
+            m.team === buyerName &&
+            m.fromTo === sellerName
+        );
+
+        const reverseTransfers = State.movements.filter(m =>
+            m.type === 'compra' &&
+            m.team === sellerName &&
+            m.fromTo === buyerName
+        );
+
+        const totalBuyerPaidToSeller = transfers.reduce((s, m) => s + m.amount, 0);
+        const totalSellerPaidToBuyer = reverseTransfers.reduce((s, m) => s + m.amount, 0);
+        const netFlow = totalBuyerPaidToSeller - totalSellerPaidToBuyer;
+
+        return {
+            buyer: buyerName,
+            seller: sellerName,
+            buyerBudget: buyerStats.currentBudget,
+            sellerBudget: sellerStats.currentBudget,
+            combinedBudget: buyerStats.currentBudget + sellerStats.currentBudget,
+            transfersFromBuyerToSeller: transfers.length,
+            transfersFromSellerToBuyer: reverseTransfers.length,
+            totalBuyerPaidToSeller,
+            totalSellerPaidToBuyer,
+            netFlow
+        };
+    },
+
+    /**
+     * FINANCIAL AUDIT: Full audit report
+     */
+    runFullAudit() {
+        const conservation = this.validateMoneyConservation();
+        const teamPairs = [];
+        const teams = Object.keys(CONFIG.TEAMS);
+
+        // Test conservation between all team pairs
+        for (let i = 0; i < teams.length; i++) {
+            for (let j = i + 1; j < teams.length; j++) {
+                teamPairs.push(this.testTransferConservation(teams[i], teams[j]));
+            }
+        }
+
+        console.log('='.repeat(60));
+        console.log('💰 FINANCIAL AUDIT REPORT');
+        console.log('='.repeat(60));
+        console.log(`Money Conservation: ${conservation.isBalanced ? '✅ BALANCED' : '❌ IMBALANCED'}`);
+        console.log(`Total in League: ${(conservation.totalCurrentMoney / 1e6).toFixed(1)}M`);
+        console.log(`Expected Total: ${(conservation.expectedTotal / 1e6).toFixed(1)}M`);
+        console.log(`Difference: ${(conservation.difference / 1e6).toFixed(1)}M`);
+        console.log('-'.repeat(60));
+        console.log('Breakdown:');
+        console.log(`  Initial: ${(conservation.breakdown.initialMoney / 1e6).toFixed(1)}M`);
+        console.log(`  +System Income: ${(conservation.breakdown.systemIncome / 1e6).toFixed(1)}M`);
+        console.log(`  -System Costs: ${(conservation.breakdown.systemCosts / 1e6).toFixed(1)}M`);
+        console.log('='.repeat(60));
+
+        return { conservation, teamPairs };
     }
 };
 
