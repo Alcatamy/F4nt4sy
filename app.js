@@ -286,26 +286,75 @@ const DataParser = {
     },
 
     parseContent(content, date) {
-        const compraMatch = content.match(/^(.+?)\s+ha comprado al jugador\s+(.+?)\s+de\s+(.+?)\s+por\s+([\d.]+)[€]?.*$/i);
+        // Known team patterns to detect where player name ends
+        const teamPatterns = Object.keys(CONFIG.TEAMS).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        teamPatterns.push('LALIGA'); // Add system team
+
+        // Add aliases
+        Object.values(CONFIG.TEAMS).forEach(t => {
+            if (t.aliases) {
+                t.aliases.forEach(a => teamPatterns.push(a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+            }
+        });
+
+        const teamRegex = new RegExp(`(${teamPatterns.join('|')})`, 'i');
+
+        // COMPRA: Team ha comprado al jugador Player de OtroTeam por Amount€
+        // Use greedy match for player name to handle "F. de Jong"
+        const compraMatch = content.match(/^(.+?)\s+ha comprado al jugador\s+(.+)\s+de\s+(.+?)\s+por\s+([\d.]+)[€]?.*$/i);
         if (compraMatch) {
+            let player = compraMatch[2].trim();
+            let fromTeam = compraMatch[3].trim();
+
+            // Check if fromTeam looks like a team (if not, the split was wrong)
+            if (!teamRegex.test(fromTeam)) {
+                // Try to find the last occurrence of " de TeamName" in the full match
+                const fullMatch = compraMatch[2] + ' de ' + compraMatch[3];
+                for (const pattern of teamPatterns) {
+                    const teamIdx = fullMatch.toLowerCase().lastIndexOf(' de ' + pattern.toLowerCase());
+                    if (teamIdx > 0) {
+                        player = fullMatch.substring(0, teamIdx).trim();
+                        fromTeam = fullMatch.substring(teamIdx + 4).trim(); // +4 for " de "
+                        break;
+                    }
+                }
+            }
+
             return {
                 date,
                 team: this.normalizeTeamName(compraMatch[1].trim()),
                 type: 'compra',
-                player: compraMatch[2].trim(),
-                fromTo: this.normalizeTeamName(compraMatch[3].trim()),
+                player: player,
+                fromTo: this.normalizeTeamName(fromTeam),
                 amount: this.parseAmount(compraMatch[4])
             };
         }
 
-        const ventaMatch = content.match(/^(.+?)\s+ha vendido al jugador\s+(.+?)\s+a\s+(.+?)\s+por\s+([\d.]+)€?$/i);
+        // VENTA: Team ha vendido al jugador Player a OtroTeam por Amount€
+        const ventaMatch = content.match(/^(.+?)\s+ha vendido al jugador\s+(.+)\s+a\s+(.+?)\s+por\s+([\d.]+)€?$/i);
         if (ventaMatch) {
+            let player = ventaMatch[2].trim();
+            let toTeam = ventaMatch[3].trim();
+
+            // Check if toTeam looks like a team
+            if (!teamRegex.test(toTeam)) {
+                const fullMatch = ventaMatch[2] + ' a ' + ventaMatch[3];
+                for (const pattern of teamPatterns) {
+                    const teamIdx = fullMatch.toLowerCase().lastIndexOf(' a ' + pattern.toLowerCase());
+                    if (teamIdx > 0) {
+                        player = fullMatch.substring(0, teamIdx).trim();
+                        toTeam = fullMatch.substring(teamIdx + 3).trim(); // +3 for " a "
+                        break;
+                    }
+                }
+            }
+
             return {
                 date,
                 team: this.normalizeTeamName(ventaMatch[1].trim()),
                 type: 'venta',
-                player: ventaMatch[2].trim(),
-                fromTo: this.normalizeTeamName(ventaMatch[3].trim()),
+                player: player,
+                fromTo: this.normalizeTeamName(toTeam),
                 amount: this.parseAmount(ventaMatch[4])
             };
         }
