@@ -80,24 +80,31 @@ const State = {
                     }));
                 }
 
+                // CRITICAL: Re-normalize ALL team names BEFORE saving
+                // This ensures aliases like 'Vigar FC' -> 'Vigar24' are applied
+                this.movements = this.movements.map(m => ({
+                    ...m,
+                    team: DataParser.normalizeTeamName(m.team || ''),
+                    fromTo: DataParser.normalizeTeamName(m.fromTo || '')
+                }));
+
                 this.saveToStorage();
             } else {
                 this.movements = safeLoad(CONFIG.STORAGE_KEYS.MOVEMENTS, []);
                 this.clausulasHistory = safeLoad('fantasy_clausulas_history', []);
+
+                // Re-normalize loaded data to handle alias updates
+                this.movements = this.movements.map(m => ({
+                    ...m,
+                    team: DataParser.normalizeTeamName(m.team || ''),
+                    fromTo: DataParser.normalizeTeamName(m.fromTo || '')
+                }));
+
+                this.clausulasHistory = this.clausulasHistory.map(c => ({
+                    ...c,
+                    team: DataParser.normalizeTeamName(c.team || '')
+                }));
             }
-
-            // CRITICAL: Re-normalize ALL team names to handle alias updates
-            // This ensures consistency even if data was saved before alias was added
-            this.movements = this.movements.map(m => ({
-                ...m,
-                team: DataParser.normalizeTeamName(m.team || ''),
-                fromTo: DataParser.normalizeTeamName(m.fromTo || '')
-            }));
-
-            this.clausulasHistory = this.clausulasHistory.map(c => ({
-                ...c,
-                team: DataParser.normalizeTeamName(c.team || '')
-            }));
 
             this.teamValues = safeLoad(CONFIG.STORAGE_KEYS.TEAM_VALUES, {});
             this.playerValues = safeLoad(CONFIG.STORAGE_KEYS.PLAYER_VALUES, {});
