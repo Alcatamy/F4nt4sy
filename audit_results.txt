@@ -1,0 +1,40 @@
+================================================================================
+FULL BUDGET AUDIT - ALL TEAMS
+================================================================================
+
+GOLENCIERRO FC:
+  Initial: 103.0M | Clausulas: 180.5M
+  Purchases: 1831.9M | Sales: 801.7M | Inferred: 1022.5M
+  Jornada: 100.1M | 11 Ideal: 1.0M | Blindajes: 7
+  >>> CALCULATED BUDGET: 15.9M
+
+Vigar24:
+  Initial: 103.0M | Clausulas: 107.0M
+  Purchases: 3234.1M | Sales: 2354.4M | Inferred: 1075.7M
+  Jornada: 116.0M | 11 Ideal: 1.0M | Blindajes: 16
+  >>> CALCULATED BUDGET: 309.1M
+
+Visite La Manga FC:
+  Initial: 103.0M | Clausulas: 54.0M
+  Purchases: 1434.6M | Sales: 444.5M | Inferred: 880.5M
+  Jornada: 105.1M | 11 Ideal: 0.8M | Blindajes: 8
+  >>> CALCULATED BUDGET: 45.3M
+
+Pablinistan FC:
+  Initial: 103.0M | Clausulas: 152.2M
+  Purchases: 2106.9M | Sales: 786.9M | Inferred: 1429.4M
+  Jornada: 107.6M | 11 Ideal: 1.0M | Blindajes: 13
+  >>> CALCULATED BUDGET: 168.8M
+
+Alcatamy eSports By:
+  Initial: 100.0M | Clausulas: 168.8M
+  Purchases: 3469.7M | Sales: 2026.9M | Inferred: 1451.7M
+  Jornada: 115.3M | 11 Ideal: 1.2M | Blindajes: 12
+  >>> CALCULATED BUDGET: 56.5M
+
+Morenazos FC:
+  Initial: 103.0M | Clausulas: 36.0M
+  Purchases: 1355.5M | Sales: 404.3M | Inferred: 954.0M
+  Jornada: 77.1M | 11 Ideal: 0.5M | Blindajes: 1
+  >>> CALCULATED BUDGET: 147.5M
+

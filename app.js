@@ -43,6 +43,16 @@ const State = {
     },
 
     loadFromStorage() {
+        const safeLoad = (key, defaultVal) => {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : defaultVal;
+            } catch (e) {
+                console.warn(`Error loading key ${key}:`, e);
+                return defaultVal;
+            }
+        };
+
         try {
             // Check if we have data in storage
             const savedMovements = localStorage.getItem(CONFIG.STORAGE_KEYS.MOVEMENTS);
@@ -53,7 +63,6 @@ const State = {
 
                 // 1. Initial Movements
                 if (OFFICIAL_DATA.movementsRaw) {
-                    // Use \n to join lines so parseMovements treats it as a full text
                     this.movements = DataParser.parseMovements(OFFICIAL_DATA.movementsRaw.join('\n'));
                 }
 
@@ -72,22 +81,16 @@ const State = {
                 }
 
                 this.saveToStorage();
-                // Don't return, let it flow to load variables properly initialized above
-                // Actually, if we set this.movements and this.clausulasHistory directly, we just need to load others.
             } else {
-                this.movements = savedMovements ? JSON.parse(savedMovements) : [];
-                const clausulasHistory = localStorage.getItem('fantasy_clausulas_history');
-                this.clausulasHistory = clausulasHistory ? JSON.parse(clausulasHistory) : [];
+                this.movements = safeLoad(CONFIG.STORAGE_KEYS.MOVEMENTS, []);
+                this.clausulasHistory = safeLoad('fantasy_clausulas_history', []);
             }
 
-            const teamValues = localStorage.getItem(CONFIG.STORAGE_KEYS.TEAM_VALUES);
-            const playerValues = localStorage.getItem(CONFIG.STORAGE_KEYS.PLAYER_VALUES);
-
-            this.teamValues = teamValues ? JSON.parse(teamValues) : {};
-            this.playerValues = playerValues ? JSON.parse(playerValues) : {};
+            this.teamValues = safeLoad(CONFIG.STORAGE_KEYS.TEAM_VALUES, {});
+            this.playerValues = safeLoad(CONFIG.STORAGE_KEYS.PLAYER_VALUES, {});
 
         } catch (e) {
-            console.error('Error loading from storage:', e);
+            console.error('Critical - Error loading from storage:', e);
         }
     },
 
@@ -143,11 +146,23 @@ const State = {
 
     parseDate(dateStr) {
         if (!dateStr) return new Date(0);
-        const parts = dateStr.split('/');
-        if (parts.length === 3) {
-            return new Date(parts[2], parts[1] - 1, parts[0]);
+
+        // 1. Try DD/MM/YYYY (Standard format for this app)
+        if (dateStr.includes('/')) {
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const year = parseInt(parts[2], 10);
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                    return new Date(year, month, day);
+                }
+            }
         }
-        return new Date(0);
+
+        // 2. Try native parsing (ISO, etc.)
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? new Date(0) : d;
     }
 };
 
@@ -538,6 +553,19 @@ const UI = {
 
         document.getElementById('btnAddMovements').addEventListener('click', () => this.openModal('modalAddMovements'));
         document.getElementById('btnUpdateValues').addEventListener('click', () => this.openModal('modalUpdateValues'));
+
+        const btnReset = document.getElementById('btnResetData');
+        if (btnReset) {
+            btnReset.addEventListener('click', () => {
+                if (confirm('⚠️ ¿Estás seguro? Se borrarán todos los cambios locales y se recargarán los datos oficiales.')) {
+                    try {
+                        localStorage.clear();
+                        sessionStorage.removeItem(CONFIG.AUTH.SESSION_KEY); // Also reset auth
+                        location.reload();
+                    } catch (e) { console.error(e); }
+                }
+            });
+        }
 
         document.getElementById('closeAddMovements').addEventListener('click', () => this.closeModal('modalAddMovements'));
         document.getElementById('closeUpdateValues').addEventListener('click', () => this.closeModal('modalUpdateValues'));

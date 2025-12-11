@@ -1,5 +1,4 @@
 # Development tools and temporary files
-*.txt
 *.csv
 *.xlsx
 *.json
@@ -12,6 +11,7 @@ ui_*.xml
 !scrape_fantasy.py
 !adb_scraper.py
 !regen_data.py
+!audit_budgets.py
 __pycache__/
 *.pyc
 
